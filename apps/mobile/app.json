@@ -26,7 +26,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "app.naviz.mobile",
       "infoPlist": {
-        "UIBackgroundModes": ["location"],
+        "UIBackgroundModes": [
+          "location"
+        ],
         "CFBundleAllowMixedLocalizations": true
       }
     },
@@ -44,7 +46,11 @@
       ]
     },
     "extra": {
-      "router": {}
-    }
+      "router": {},
+      "eas": {
+        "projectId": "a8395eb1-cc48-4b72-9abc-2822cdedd5a4"
+      }
+    },
+    "owner": "shaharblank"
   }
 }
