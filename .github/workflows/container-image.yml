@@ -5,6 +5,7 @@ on:
   push:
     branches: [main]
     paths:
+      - ".dockerignore"
       - ".github/workflows/container-image.yml"
       - "apps/api/**"
       - "artifacts/demo/**"
