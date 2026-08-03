@@ -9,6 +9,5 @@
 **/.expo
 **/dist
 apps/mobile
-packages
 artifacts
 docs
