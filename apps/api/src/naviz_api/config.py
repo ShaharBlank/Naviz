@@ -7,7 +7,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="NAVIZ_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="NAVIZ_",
+        env_file=".env",
+        extra="ignore",
+        enable_decoding=False,
+    )
 
     env: str = "development"
     data_bundle: str = "demo-2026-08-02"
