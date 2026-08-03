@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "naviz-data"
+version = "0.1.0"
+description = "Immutable Naviz regional data bundle tooling"
+requires-python = ">=3.12"
+dependencies = ["pydantic>=2.11,<3"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.4,<9", "ruff>=0.12,<1", "mypy>=1.16,<2"]
+
+[project.scripts]
+naviz-data = "naviz_data.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["naviz_data"]
+

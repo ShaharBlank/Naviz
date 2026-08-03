@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "bundle_id": "demo-2026-08-02",
+  "coverage": "Tel Aviv-Yafo deterministic development fixture",
+  "generated_at": "2026-08-02T00:00:00Z",
+  "source_versions": {
+    "fixture": "1"
+  },
+  "files": [
+    {
+      "logical_name": "places",
+      "path": "places.json",
+      "sha256": "9ea220b51b75da81d38e9da6dd2b908e2c85024a97a92892dc7c03d3500c4779",
+      "size_bytes": 55,
+      "media_type": "application/json"
+    },
+    {
+      "logical_name": "shade_profiles",
+      "path": "shade-profiles.json",
+      "sha256": "8b4681eea7f5293bdd91e6427d0178d63686fe6b53c05dd4c9788aef6126b543",
+      "size_bytes": 60,
+      "media_type": "application/json"
+    },
+    {
+      "logical_name": "street_graph",
+      "path": "street-graph.json",
+      "sha256": "728910dc16ac8c24846e31c2ac40a93306f72ed662255662a292467a169e9dca",
+      "size_bytes": 54,
+      "media_type": "application/json"
+    },
+    {
+      "logical_name": "transit",
+      "path": "transit.json",
+      "sha256": "7b435abfbaf9b34234cc2c73f0f8a5e4ea29cdee971bd67179f17391d76b582a",
+      "size_bytes": 51,
+      "media_type": "application/json"
+    }
+  ],
+  "attribution": [
+    "Development fixture only; no upstream map or transit data is included"
+  ]
+}

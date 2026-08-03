@@ -1,0 +1,2053 @@
+{
+  "components": {
+    "schemas": {
+      "AccessibilityPreferences": {
+        "additionalProperties": false,
+        "properties": {
+          "avoid_stairs": {
+            "default": false,
+            "title": "Avoid Stairs",
+            "type": "boolean"
+          },
+          "maximum_carry_distance_m": {
+            "default": 500,
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Maximum Carry Distance M",
+            "type": "integer"
+          },
+          "require_step_free": {
+            "default": false,
+            "title": "Require Step Free",
+            "type": "boolean"
+          }
+        },
+        "title": "AccessibilityPreferences",
+        "type": "object"
+      },
+      "Coordinate": {
+        "additionalProperties": false,
+        "properties": {
+          "latitude": {
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Longitude",
+            "type": "number"
+          }
+        },
+        "required": [
+          "latitude",
+          "longitude"
+        ],
+        "title": "Coordinate",
+        "type": "object"
+      },
+      "DataConfidence": {
+        "enum": [
+          "high",
+          "medium",
+          "low",
+          "unknown"
+        ],
+        "title": "DataConfidence",
+        "type": "string"
+      },
+      "DataQuality": {
+        "additionalProperties": false,
+        "properties": {
+          "confidence": {
+            "$ref": "#/components/schemas/DataConfidence"
+          },
+          "dataset_versions": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Dataset Versions",
+            "type": "object"
+          },
+          "realtime_transit": {
+            "default": false,
+            "title": "Realtime Transit",
+            "type": "boolean"
+          },
+          "scheduled_transit": {
+            "default": true,
+            "title": "Scheduled Transit",
+            "type": "boolean"
+          },
+          "shade_sources": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Shade Sources",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "confidence"
+        ],
+        "title": "DataQuality",
+        "type": "object"
+      },
+      "DataStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "coverage": {
+            "title": "Coverage",
+            "type": "string"
+          },
+          "data_version": {
+            "title": "Data Version",
+            "type": "string"
+          },
+          "engine_profile": {
+            "title": "Engine Profile",
+            "type": "string"
+          },
+          "feeds": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Feeds",
+            "type": "object"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "warmed": {
+            "title": "Warmed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "coverage",
+          "data_version",
+          "engine_profile",
+          "warmed",
+          "updated_at",
+          "feeds"
+        ],
+        "title": "DataStatus",
+        "type": "object"
+      },
+      "Favorite": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "place": {
+            "$ref": "#/components/schemas/Place"
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "place",
+          "created_at"
+        ],
+        "title": "Favorite",
+        "type": "object"
+      },
+      "FavoriteCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "label": {
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "place": {
+            "$ref": "#/components/schemas/Place"
+          }
+        },
+        "required": [
+          "label",
+          "place"
+        ],
+        "title": "FavoriteCreate",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HistoryEntry": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "destination": {
+            "$ref": "#/components/schemas/Place"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/TravelMode"
+          },
+          "origin_label": {
+            "title": "Origin Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "origin_label",
+          "destination",
+          "mode",
+          "created_at",
+          "expires_at"
+        ],
+        "title": "HistoryEntry",
+        "type": "object"
+      },
+      "Locale": {
+        "enum": [
+          "he",
+          "en"
+        ],
+        "title": "Locale",
+        "type": "string"
+      },
+      "Maneuver": {
+        "additionalProperties": false,
+        "properties": {
+          "coordinate": {
+            "$ref": "#/components/schemas/Coordinate"
+          },
+          "distance_m": {
+            "title": "Distance M",
+            "type": "number"
+          },
+          "duration_s": {
+            "title": "Duration S",
+            "type": "number"
+          },
+          "geometry_index": {
+            "title": "Geometry Index",
+            "type": "integer"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "instruction_key": {
+            "title": "Instruction Key",
+            "type": "string"
+          },
+          "modifier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modifier"
+          },
+          "street_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Street Name"
+          }
+        },
+        "required": [
+          "id",
+          "instruction_key",
+          "distance_m",
+          "duration_s",
+          "geometry_index",
+          "coordinate"
+        ],
+        "title": "Maneuver",
+        "type": "object"
+      },
+      "MobilityResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "vehicles": {
+            "items": {
+              "$ref": "#/components/schemas/MobilityVehicle"
+            },
+            "title": "Vehicles",
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "vehicles",
+          "generated_at"
+        ],
+        "title": "MobilityResponse",
+        "type": "object"
+      },
+      "MobilityVehicle": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "default": true,
+            "title": "Available",
+            "type": "boolean"
+          },
+          "battery_percent": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Percent"
+          },
+          "coordinate": {
+            "$ref": "#/components/schemas/Coordinate"
+          },
+          "deep_link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deep Link"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/VehicleKind"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "stale": {
+            "default": false,
+            "title": "Stale",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "provider",
+          "id",
+          "kind",
+          "coordinate",
+          "observed_at"
+        ],
+        "title": "MobilityVehicle",
+        "type": "object"
+      },
+      "Place": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "title": "Category",
+            "type": "string"
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/DataConfidence",
+            "default": "high"
+          },
+          "coordinate": {
+            "$ref": "#/components/schemas/Coordinate"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "name_he": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name He"
+          },
+          "subtitle": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subtitle"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "coordinate",
+          "category"
+        ],
+        "title": "Place",
+        "type": "object"
+      },
+      "RentalDetails": {
+        "additionalProperties": false,
+        "properties": {
+          "battery_percent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Battery Percent"
+          },
+          "deep_link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deep Link"
+          },
+          "observed_at": {
+            "format": "date-time",
+            "title": "Observed At",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "vehicle_id": {
+            "title": "Vehicle Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "vehicle_id",
+          "observed_at"
+        ],
+        "title": "RentalDetails",
+        "type": "object"
+      },
+      "RerouteRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "accessibility": {
+            "$ref": "#/components/schemas/AccessibilityPreferences"
+          },
+          "accuracy_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 1000.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accuracy M"
+          },
+          "constraints": {
+            "$ref": "#/components/schemas/RouteConstraints"
+          },
+          "current_position": {
+            "$ref": "#/components/schemas/Coordinate"
+          },
+          "depart_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depart At"
+          },
+          "destination": {
+            "$ref": "#/components/schemas/Coordinate"
+          },
+          "heading_degrees": {
+            "anyOf": [
+              {
+                "exclusiveMaximum": 360.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heading Degrees"
+          },
+          "locale": {
+            "$ref": "#/components/schemas/Locale",
+            "default": "he"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/TravelMode",
+            "default": "walk"
+          },
+          "original_route_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Route Id"
+          },
+          "preference": {
+            "$ref": "#/components/schemas/RoutePreference",
+            "default": "fastest"
+          },
+          "vehicle": {
+            "$ref": "#/components/schemas/VehicleProfile"
+          }
+        },
+        "required": [
+          "current_position",
+          "destination"
+        ],
+        "title": "RerouteRequest",
+        "type": "object"
+      },
+      "RouteAlternative": {
+        "additionalProperties": false,
+        "properties": {
+          "annotations": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentAnnotation"
+            },
+            "title": "Annotations",
+            "type": "array"
+          },
+          "arrival_at": {
+            "format": "date-time",
+            "title": "Arrival At",
+            "type": "string"
+          },
+          "bbox": {
+            "maxItems": 4,
+            "minItems": 4,
+            "prefixItems": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "number"
+              }
+            ],
+            "title": "Bbox",
+            "type": "array"
+          },
+          "departure_at": {
+            "format": "date-time",
+            "title": "Departure At",
+            "type": "string"
+          },
+          "encoded_polyline": {
+            "title": "Encoded Polyline",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "fallback_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fallback Reason"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "label_key": {
+            "title": "Label Key",
+            "type": "string"
+          },
+          "legs": {
+            "items": {
+              "$ref": "#/components/schemas/RouteLeg"
+            },
+            "title": "Legs",
+            "type": "array"
+          },
+          "maneuvers": {
+            "items": {
+              "$ref": "#/components/schemas/Maneuver"
+            },
+            "title": "Maneuvers",
+            "type": "array"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/RouteMetrics"
+          },
+          "quality": {
+            "$ref": "#/components/schemas/DataQuality"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "label_key",
+          "encoded_polyline",
+          "bbox",
+          "departure_at",
+          "arrival_at",
+          "legs",
+          "maneuvers",
+          "annotations",
+          "metrics",
+          "quality",
+          "expires_at"
+        ],
+        "title": "RouteAlternative",
+        "type": "object"
+      },
+      "RouteConstraints": {
+        "additionalProperties": false,
+        "properties": {
+          "allow_low_confidence_crossings": {
+            "default": false,
+            "title": "Allow Low Confidence Crossings",
+            "type": "boolean"
+          },
+          "maximum_distance_detour_percent": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum Distance Detour Percent"
+          },
+          "maximum_time_detour_percent": {
+            "anyOf": [
+              {
+                "maximum": 100.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maximum Time Detour Percent"
+          }
+        },
+        "title": "RouteConstraints",
+        "type": "object"
+      },
+      "RouteLeg": {
+        "additionalProperties": false,
+        "properties": {
+          "annotations": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentAnnotation"
+            },
+            "title": "Annotations",
+            "type": "array"
+          },
+          "distance_m": {
+            "title": "Distance M",
+            "type": "number"
+          },
+          "duration_s": {
+            "title": "Duration S",
+            "type": "number"
+          },
+          "encoded_polyline": {
+            "title": "Encoded Polyline",
+            "type": "string"
+          },
+          "from_name": {
+            "title": "From Name",
+            "type": "string"
+          },
+          "maneuvers": {
+            "items": {
+              "$ref": "#/components/schemas/Maneuver"
+            },
+            "title": "Maneuvers",
+            "type": "array"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/TravelMode"
+          },
+          "rental": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RentalDetails"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "to_name": {
+            "title": "To Name",
+            "type": "string"
+          },
+          "transit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TransitDetails"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "mode",
+          "from_name",
+          "to_name",
+          "encoded_polyline",
+          "distance_m",
+          "duration_s"
+        ],
+        "title": "RouteLeg",
+        "type": "object"
+      },
+      "RouteMetrics": {
+        "additionalProperties": false,
+        "properties": {
+          "cycling_distance_m": {
+            "default": 0,
+            "title": "Cycling Distance M",
+            "type": "number"
+          },
+          "detour_distance_percent": {
+            "default": 0,
+            "title": "Detour Distance Percent",
+            "type": "number"
+          },
+          "detour_time_percent": {
+            "default": 0,
+            "title": "Detour Time Percent",
+            "type": "number"
+          },
+          "distance_m": {
+            "title": "Distance M",
+            "type": "number"
+          },
+          "duration_s": {
+            "title": "Duration S",
+            "type": "number"
+          },
+          "high_confidence_shade_fraction": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "High Confidence Shade Fraction"
+          },
+          "shade_fraction": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shade Fraction"
+          },
+          "signals_avoided": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signals Avoided"
+          },
+          "sun_exposure_minutes": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sun Exposure Minutes"
+          },
+          "traffic_signals": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Traffic Signals"
+          },
+          "transfers": {
+            "default": 0,
+            "title": "Transfers",
+            "type": "integer"
+          },
+          "walking_distance_m": {
+            "default": 0,
+            "title": "Walking Distance M",
+            "type": "number"
+          }
+        },
+        "required": [
+          "distance_m",
+          "duration_s"
+        ],
+        "title": "RouteMetrics",
+        "type": "object"
+      },
+      "RoutePlanRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "accessibility": {
+            "$ref": "#/components/schemas/AccessibilityPreferences"
+          },
+          "arrive_by": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Arrive By"
+          },
+          "constraints": {
+            "$ref": "#/components/schemas/RouteConstraints"
+          },
+          "depart_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Depart At"
+          },
+          "destination": {
+            "$ref": "#/components/schemas/Coordinate"
+          },
+          "locale": {
+            "$ref": "#/components/schemas/Locale",
+            "default": "he"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/TravelMode",
+            "default": "walk"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/Coordinate"
+          },
+          "preference": {
+            "$ref": "#/components/schemas/RoutePreference",
+            "default": "fastest"
+          },
+          "vehicle": {
+            "$ref": "#/components/schemas/VehicleProfile"
+          }
+        },
+        "required": [
+          "origin",
+          "destination"
+        ],
+        "title": "RoutePlanRequest",
+        "type": "object"
+      },
+      "RoutePlanResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "data_version": {
+            "title": "Data Version",
+            "type": "string"
+          },
+          "engine_profile": {
+            "title": "Engine Profile",
+            "type": "string"
+          },
+          "request_id": {
+            "title": "Request Id",
+            "type": "string"
+          },
+          "routes": {
+            "items": {
+              "$ref": "#/components/schemas/RouteAlternative"
+            },
+            "title": "Routes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "request_id",
+          "routes",
+          "data_version",
+          "engine_profile"
+        ],
+        "title": "RoutePlanResponse",
+        "type": "object"
+      },
+      "RoutePreference": {
+        "enum": [
+          "fastest",
+          "balanced_shade",
+          "maximum_shade",
+          "fewer_lights",
+          "safer_streets",
+          "fewer_transfers"
+        ],
+        "title": "RoutePreference",
+        "type": "string"
+      },
+      "SearchResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "data_version": {
+            "title": "Data Version",
+            "type": "string"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/Place"
+            },
+            "title": "Results",
+            "type": "array"
+          }
+        },
+        "required": [
+          "query",
+          "results",
+          "data_version"
+        ],
+        "title": "SearchResponse",
+        "type": "object"
+      },
+      "SegmentAnnotation": {
+        "additionalProperties": false,
+        "properties": {
+          "classification": {
+            "title": "Classification",
+            "type": "string"
+          },
+          "confidence": {
+            "$ref": "#/components/schemas/DataConfidence",
+            "default": "unknown"
+          },
+          "crossing_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Crossing Kind"
+          },
+          "end_index": {
+            "title": "End Index",
+            "type": "integer"
+          },
+          "selected_side": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selected Side"
+          },
+          "shade_fraction": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shade Fraction"
+          },
+          "start_index": {
+            "title": "Start Index",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "start_index",
+          "end_index",
+          "classification"
+        ],
+        "title": "SegmentAnnotation",
+        "type": "object"
+      },
+      "TransitDetails": {
+        "additionalProperties": false,
+        "properties": {
+          "agency": {
+            "title": "Agency",
+            "type": "string"
+          },
+          "arrival_at": {
+            "format": "date-time",
+            "title": "Arrival At",
+            "type": "string"
+          },
+          "departure_at": {
+            "format": "date-time",
+            "title": "Departure At",
+            "type": "string"
+          },
+          "headsign": {
+            "title": "Headsign",
+            "type": "string"
+          },
+          "realtime": {
+            "default": false,
+            "title": "Realtime",
+            "type": "boolean"
+          },
+          "route_short_name": {
+            "title": "Route Short Name",
+            "type": "string"
+          },
+          "stops": {
+            "title": "Stops",
+            "type": "integer"
+          },
+          "vehicle_rule_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Rule Source"
+          }
+        },
+        "required": [
+          "agency",
+          "route_short_name",
+          "headsign",
+          "departure_at",
+          "arrival_at",
+          "stops"
+        ],
+        "title": "TransitDetails",
+        "type": "object"
+      },
+      "TravelMode": {
+        "enum": [
+          "walk",
+          "bike",
+          "scooter",
+          "car",
+          "motorcycle",
+          "truck",
+          "transit",
+          "bike_transit",
+          "scooter_transit",
+          "rental_transit"
+        ],
+        "title": "TravelMode",
+        "type": "string"
+      },
+      "UserPreferences": {
+        "additionalProperties": false,
+        "properties": {
+          "default_mode": {
+            "$ref": "#/components/schemas/TravelMode",
+            "default": "walk"
+          },
+          "default_walk_preference": {
+            "$ref": "#/components/schemas/RoutePreference",
+            "default": "balanced_shade"
+          },
+          "history_enabled": {
+            "default": false,
+            "title": "History Enabled",
+            "type": "boolean"
+          },
+          "locale": {
+            "$ref": "#/components/schemas/Locale",
+            "default": "he"
+          }
+        },
+        "title": "UserPreferences",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "VehicleKind": {
+        "enum": [
+          "none",
+          "full_size_bike",
+          "folding_bike",
+          "personal_scooter",
+          "shared_bike",
+          "shared_scooter"
+        ],
+        "title": "VehicleKind",
+        "type": "string"
+      },
+      "VehicleProfile": {
+        "additionalProperties": false,
+        "properties": {
+          "can_fold": {
+            "default": false,
+            "title": "Can Fold",
+            "type": "boolean"
+          },
+          "height_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 10.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Height M"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/VehicleKind",
+            "default": "none"
+          },
+          "weight_t": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 100.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight T"
+          },
+          "width_m": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 5.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Width M"
+          }
+        },
+        "title": "VehicleProfile",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "summary": "Tel Aviv shaded, multimodal, and low-signal navigation",
+    "title": "Naviz API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "title": "Response Health Health Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "system"
+        ]
+      }
+    },
+    "/v1/data/status": {
+      "get": {
+        "operationId": "data_status_v1_data_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Data Status",
+        "tags": [
+          "data"
+        ]
+      }
+    },
+    "/v1/me/favorites": {
+      "get": {
+        "operationId": "list_favorites_v1_me_favorites_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Favorite"
+                  },
+                  "title": "Response List Favorites V1 Me Favorites Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Favorites",
+        "tags": [
+          "account"
+        ]
+      },
+      "post": {
+        "operationId": "save_favorite_v1_me_favorites_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FavoriteCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Favorite"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Favorite",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/v1/me/favorites/{favorite_id}": {
+      "delete": {
+        "operationId": "delete_favorite_v1_me_favorites__favorite_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "favorite_id",
+            "required": true,
+            "schema": {
+              "title": "Favorite Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Favorite",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/v1/me/history": {
+      "get": {
+        "operationId": "get_history_v1_me_history_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/HistoryEntry"
+                  },
+                  "title": "Response Get History V1 Me History Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get History",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/v1/me/preferences": {
+      "get": {
+        "operationId": "get_preferences_v1_me_preferences_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPreferences"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Preferences",
+        "tags": [
+          "account"
+        ]
+      },
+      "put": {
+        "operationId": "update_preferences_v1_me_preferences_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "authorization",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserPreferences"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserPreferences"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Preferences",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/v1/mobility/vehicles": {
+      "get": {
+        "operationId": "mobility_vehicles_v1_mobility_vehicles_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "min_latitude",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Min Latitude",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "min_longitude",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Min Longitude",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max_latitude",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Max Latitude",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max_longitude",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Max Longitude",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MobilityResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Mobility Vehicles",
+        "tags": [
+          "mobility"
+        ]
+      }
+    },
+    "/v1/routes/plan": {
+      "post": {
+        "operationId": "plan_route_v1_routes_plan_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoutePlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePlanResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Plan Route",
+        "tags": [
+          "routing"
+        ]
+      }
+    },
+    "/v1/routes/reroute": {
+      "post": {
+        "operationId": "reroute_v1_routes_reroute_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RerouteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoutePlanResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reroute",
+        "tags": [
+          "routing"
+        ]
+      }
+    },
+    "/v1/search": {
+      "get": {
+        "operationId": "search_v1_search_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 120,
+              "minLength": 0,
+              "title": "Q",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "language",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Locale",
+              "default": "he"
+            }
+          },
+          {
+            "in": "query",
+            "name": "latitude",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 90,
+                  "minimum": -90,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Latitude"
+            }
+          },
+          {
+            "in": "query",
+            "name": "longitude",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 180,
+                  "minimum": -180,
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Longitude"
+            }
+          },
+          {
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "bbox",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Bbox"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 8,
+              "maximum": 20,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Search",
+        "tags": [
+          "search"
+        ]
+      }
+    },
+    "/v1/search/reverse": {
+      "get": {
+        "operationId": "reverse_search_v1_search_reverse_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "latitude",
+            "required": true,
+            "schema": {
+              "maximum": 90,
+              "minimum": -90,
+              "title": "Latitude",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "longitude",
+            "required": true,
+            "schema": {
+              "maximum": 180,
+              "minimum": -180,
+              "title": "Longitude",
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Place"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reverse Search",
+        "tags": [
+          "search"
+        ]
+      }
+    }
+  }
+}

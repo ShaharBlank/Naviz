@@ -1,0 +1,23 @@
+[tool.uv.workspace]
+members = ["apps/api", "packages/data_pipeline"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = ["apps/mobile"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
+
+[tool.pytest.ini_options]
+testpaths = ["apps/api/tests", "packages/data_pipeline/tests"]
+addopts = "-ra --strict-markers"
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["naviz_api", "naviz_data"]
+
+[[tool.mypy.overrides]]
+module = ["jose", "jose.*"]
+ignore_missing_imports = true

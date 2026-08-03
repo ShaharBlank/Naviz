@@ -1,0 +1,14 @@
+appId: app.naviz.mobile
+name: Naviz bilingual smoke
+---
+- launchApp:
+    clearState: true
+- assertVisible: "Naviz"
+- tapOn: "English"
+- assertVisible: "Where to?"
+- tapOn: "Where to?"
+- inputText: "Habima"
+- assertVisible: "Habima Square"
+- tapOn: "Habima Square"
+- assertVisible: "Balanced shade"
+- assertVisible: "Show routes"

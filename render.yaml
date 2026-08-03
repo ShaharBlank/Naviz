@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: naviz-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./infra/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: NAVIZ_ENV
+        value: production
+      - key: NAVIZ_DATA_BUNDLE
+        value: demo-2026-08-02
+      - key: NAVIZ_ALLOWED_ORIGINS
+        value: https://naviz.app

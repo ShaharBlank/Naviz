@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "Naviz",
+    "slug": "naviz",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "naviz",
+    "userInterfaceStyle": "automatic",
+    "experiments": {
+      "typedRoutes": true
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "@maplibre/maplibre-react-native",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Naviz uses your location to guide you while a route is active.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true
+        }
+      ]
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.naviz.mobile",
+      "infoPlist": {
+        "UIBackgroundModes": ["location"],
+        "CFBundleAllowMixedLocalizations": true
+      }
+    },
+    "android": {
+      "package": "app.naviz.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#111827"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ]
+    },
+    "extra": {
+      "router": {}
+    }
+  }
+}
