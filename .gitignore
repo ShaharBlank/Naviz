@@ -26,4 +26,4 @@ apps/mobile/coverage/
 *.mobileprovision
 data/artifacts/
 data/downloads/
-
+artifacts/release/*.apk

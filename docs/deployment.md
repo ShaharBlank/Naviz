@@ -1,5 +1,20 @@
 # Deployment
 
+## Current public beta deployment
+
+- API: <https://naviz-api.onrender.com>
+- API health: <https://naviz-api.onrender.com/health>
+- API data status: <https://naviz-api.onrender.com/v1/data/status>
+- Public container: `ghcr.io/shaharblank/naviz-api`
+- Source repository: <https://github.com/ShaharBlank/Naviz> (private)
+- Expo project: <https://expo.dev/accounts/shaharblank/projects/naviz>
+- Android build:
+  <https://expo.dev/accounts/shaharblank/projects/naviz/builds/d1adae85-ba7f-46c2-98c7-9de1e8b71860>
+
+The Android `preview` profile embeds `https://naviz-api.onrender.com` as
+`EXPO_PUBLIC_API_URL`. The public EAS artifact is temporary; the verified local
+copy and its checksum are documented in `artifacts/release/README.md`.
+
 ## Render beta API
 
 1. Create a Render Blueprint from `render.yaml`.
@@ -33,5 +48,5 @@ testing MapLibre/background navigation. `eas build --platform android --profile
 preview` produces an internal APK. The iOS development profile requires a valid
 signing team; simulator/personal-team and Android remain the zero-cost paths.
 
-The repository does not contain signing keys, EAS project IDs, provider secrets,
-or a fake live-data URL.
+The repository contains the public EAS project ID needed for reproducible builds,
+but does not contain signing keys, provider secrets, or a fake live-data URL.

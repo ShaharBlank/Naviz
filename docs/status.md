@@ -13,6 +13,11 @@ cannot change without a mapped permitted crossing. Low-signal alternatives are
 only advertised inside the 10% ETA and 15% distance caps. Range-RAPTOR carries a
 vehicle-state dimension and rejects unknown personal-bike boarding rules.
 
+The compact API is deployed at <https://naviz-api.onrender.com> from the public
+`ghcr.io/shaharblank/naviz-api` container. Expo build `d1adae85` produced a
+signed Android 0.1.0 preview APK with that API URL embedded. The APK release
+metadata and SHA-256 checksum are in `artifacts/release/README.md`.
+
 ## Requires real data or external operations
 
 - Regional OSM extraction, turn expansion, landmark preprocessing, and the 250
@@ -23,8 +28,8 @@ vehicle-state dimension and rejects unknown personal-bike boarding rules.
   horizon profiles, and the field-labelled shade corpus.
 - Lawful provider-specific GBFS discovery URLs and license approval.
 - Generated Tel Aviv PMTiles and device-side corridor packaging.
-- Neon project/issuer values, Render service creation, EAS project/signing, and
-  physical-device field, accessibility, security, and battery audits.
+- Neon project/issuer values and physical-device field, accessibility, security,
+  and battery audits.
 - Dedicated Valhalla/OTP services for the scale profile.
 
 Until those inputs pass `docs/acceptance.md`, the UI continues to display the
