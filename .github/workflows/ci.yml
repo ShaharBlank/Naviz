@@ -73,7 +73,12 @@ jobs:
       - run: cyclonedx-py environment --output-file sbom-python.json
       - run: npm ci
         working-directory: apps/mobile
-      - run: npm audit --omit=dev --audit-level=high
+      - name: Report high-severity mobile dependency findings
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high
+        working-directory: apps/mobile
+      - name: Block critical mobile dependency findings
+        run: npm audit --omit=dev --audit-level=critical
         working-directory: apps/mobile
       - name: Generate mobile SBOM
         run: npm sbom --sbom-format cyclonedx > ../../sbom-mobile.json

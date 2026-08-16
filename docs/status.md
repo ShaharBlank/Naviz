@@ -15,6 +15,13 @@ background navigation, three-fix off-route hysteresis, rerouting, progress, and
 arrival. Strict TypeScript, ESLint, Jest, Ruff, mypy, pytest, contract generation,
 and Expo dependency checks are release gates.
 
+The release audit has no critical npm findings. It still reports upstream
+high-severity advisories in Expo/Metro's local image parser and an iOS project
+generation dependency; neither package is included in the Android runtime
+bundle, and npm currently offers no SDK-56-compatible patched resolution. CI
+reports those findings, blocks critical findings, and Dependabot checks weekly
+for a compatible upstream fix.
+
 Shade exposure is evaluated from the real route geometry, current solar position,
 and OpenStreetMap building footprints. Low-signal routes use mapped signal nodes
 and advertise an alternative only inside the 10% ETA and 15% distance caps.
