@@ -29,7 +29,7 @@ jobs:
         run: uv run python -m naviz_data.cli validate artifacts/demo
       - name: Verify checked-in OpenAPI contract
         run: uv run python scripts/export_openapi.py --check
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: python-coverage
           path: coverage.xml
@@ -83,7 +83,7 @@ jobs:
       - name: Generate mobile SBOM
         run: npm sbom --sbom-format cyclonedx > ../../sbom-mobile.json
         working-directory: apps/mobile
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: software-bills-of-materials
           path: |
