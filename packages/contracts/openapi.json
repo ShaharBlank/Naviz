@@ -281,6 +281,17 @@
             "title": "Instruction Key",
             "type": "string"
           },
+          "instruction_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruction Text"
+          },
           "modifier": {
             "anyOf": [
               {
@@ -1331,7 +1342,7 @@
   "info": {
     "summary": "Tel Aviv shaded, multimodal, and low-signal navigation",
     "title": "Naviz API",
-    "version": "0.1.0"
+    "version": "0.2.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -2018,6 +2029,15 @@
               "minimum": -180,
               "title": "Longitude",
               "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "language",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Locale",
+              "default": "he"
             }
           }
         ],

@@ -162,6 +162,7 @@ export const navigationMachine = setup({
     error: {
       on: {
         RETRY: "planning",
+        PLAN: "planning",
         STOP: { target: "idle", actions: "reset" },
         DESTINATION_SELECTED: { target: "idle", actions: "setDestination" },
       },

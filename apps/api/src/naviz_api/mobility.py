@@ -51,10 +51,7 @@ class MobilityService:
         now = datetime.now(UTC)
         warnings: list[str] = []
         if not self._feeds:
-            vehicles = self._demo_vehicles(now)
-            warnings.append(
-                "Demo GBFS vehicles are shown because no provider feeds are configured."
-            )
+            vehicles: list[MobilityVehicle] = []
         else:
             results = await asyncio.gather(
                 *(self._load(feed, now) for feed in self._feeds), return_exceptions=True
@@ -118,30 +115,6 @@ class MobilityService:
             vehicle.model_copy(update={"stale": now - vehicle.observed_at > self._stale})
             for vehicle in vehicles
         ]
-
-    @staticmethod
-    def _demo_vehicles(now: datetime) -> list[MobilityVehicle]:
-        return [
-            MobilityVehicle(
-                provider="Naviz Demo Mobility",
-                id="demo-scooter-1",
-                kind=VehicleKind.SHARED_SCOOTER,
-                coordinate=Coordinate(latitude=32.0741, longitude=34.7805),
-                battery_percent=82,
-                deep_link="https://example.invalid/naviz-demo/scooter-1",
-                observed_at=now,
-            ),
-            MobilityVehicle(
-                provider="Naviz Demo Mobility",
-                id="demo-bike-1",
-                kind=VehicleKind.SHARED_BIKE,
-                coordinate=Coordinate(latitude=32.0822, longitude=34.7950),
-                battery_percent=67,
-                deep_link="https://example.invalid/naviz-demo/bike-1",
-                observed_at=now,
-            ),
-        ]
-
 
 async def _empty_response() -> httpx.Response:
     return httpx.Response(200, json={"data": {"vehicle_types": []}})

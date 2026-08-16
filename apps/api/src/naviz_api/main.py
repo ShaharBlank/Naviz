@@ -13,6 +13,7 @@ from starlette.middleware.base import RequestResponseEndpoint
 
 from . import __version__
 from .config import get_settings
+from .errors import NavizError
 from .identity import AuthenticationError, Principal
 from .models import (
     Coordinate,
@@ -86,6 +87,11 @@ async def authentication_problem(request: Request, exc: AuthenticationError) -> 
     return _problem(request, 401, "Authentication failed", "authentication_failed", str(exc))
 
 
+@app.exception_handler(NavizError)
+async def naviz_problem(request: Request, exc: NavizError) -> JSONResponse:
+    return _problem(request, exc.status_code, "Unable to complete request", exc.code, exc.detail)
+
+
 @app.exception_handler(ValueError)
 async def domain_problem(request: Request, exc: ValueError) -> JSONResponse:
     return _problem(request, 400, "Unable to complete request", "domain_error", str(exc))
@@ -123,7 +129,6 @@ async def search(
     bbox: str | None = None,
     limit: Annotated[int, Query(ge=1, le=20)] = 8,
 ) -> SearchResponse:
-    del language
     proximity = (
         Coordinate(latitude=latitude, longitude=longitude)
         if latitude is not None and longitude is not None
@@ -131,8 +136,9 @@ async def search(
     )
     return SearchResponse(
         query=q,
-        results=services.search.search(
+        results=await services.search.search(
             q,
+            language=language,
             proximity=proximity,
             limit=limit,
             category=category,
@@ -147,8 +153,11 @@ async def reverse_search(
     services: Annotated[Services, Depends(get_services)],
     latitude: Annotated[float, Query(ge=-90, le=90)],
     longitude: Annotated[float, Query(ge=-180, le=180)],
+    language: Locale = Locale.HEBREW,
 ) -> Place:
-    place = services.search.reverse(Coordinate(latitude=latitude, longitude=longitude))
+    place = await services.search.reverse(
+        Coordinate(latitude=latitude, longitude=longitude), language=language
+    )
     if place is None:
         raise ValueError("No indexed place is close to this coordinate")
     return place
@@ -160,7 +169,7 @@ async def plan_route(
     request: Request,
     services: Annotated[Services, Depends(get_services)],
 ) -> RoutePlanResponse:
-    return services.routes.plan(payload, request.state.request_id)
+    return await services.routes.plan(payload, request.state.request_id)
 
 
 @app.post("/v1/routes/reroute", response_model=RoutePlanResponse, tags=["routing"])
@@ -169,7 +178,7 @@ async def reroute(
     request: Request,
     services: Annotated[Services, Depends(get_services)],
 ) -> RoutePlanResponse:
-    return services.routes.plan(payload.to_plan_request(), request.state.request_id)
+    return await services.routes.plan(payload.to_plan_request(), request.state.request_id)
 
 
 @app.get("/v1/mobility/vehicles", response_model=MobilityResponse, tags=["mobility"])

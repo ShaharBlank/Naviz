@@ -70,6 +70,12 @@ export const usePreferences = create<PreferencesState>()(
             : [place, ...state.favorites].slice(0, 20),
         })),
     }),
-    { name: "naviz-preferences-v1", storage: createJSONStorage(() => secureStorage) },
+    {
+      name: "naviz-preferences-v1",
+      storage: createJSONStorage(() => secureStorage),
+      onRehydrateStorage: () => (state) => {
+        if (state?.locale) void i18n.changeLanguage(state.locale);
+      },
+    },
   ),
 );

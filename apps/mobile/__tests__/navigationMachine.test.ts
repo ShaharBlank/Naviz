@@ -63,4 +63,14 @@ describe("navigationMachine", () => {
     expect(actor.getSnapshot().matches("permissionDenied")).toBe(true);
     expect(actor.getSnapshot().context.routes).toEqual([route]);
   });
+
+  it("accepts a fresh plan request from the error banner", () => {
+    const actor = createActor(navigationMachine).start();
+    actor.send({ type: "DESTINATION_SELECTED", destination });
+    actor.send({ type: "PLAN" });
+    actor.send({ type: "FAIL", message: "No route" });
+    actor.send({ type: "PLAN" });
+
+    expect(actor.getSnapshot().matches("planning")).toBe(true);
+  });
 });

@@ -1,8 +1,13 @@
 import { useTranslation } from "react-i18next";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 import type { RouteAlternative } from "../api/types";
-import { formatDistance, formatDuration, routeLabelKey } from "../features/navigation/presenters";
+import {
+  formatDistance,
+  formatDuration,
+  formatTelAvivTime,
+  routeLabelKey,
+} from "../features/navigation/presenters";
 import { colors, radius, shadow, spacing } from "../theme/tokens";
 
 interface Props {
@@ -10,18 +15,36 @@ interface Props {
   selectedRouteId: string | null;
   onSelect: (route: RouteAlternative) => void;
   onStart: () => void;
+  onBack: () => void;
   rtl: boolean;
 }
 
-export function RouteCards({ routes, selectedRouteId, onSelect, onStart, rtl }: Props) {
+export function RouteCards({ routes, selectedRouteId, onSelect, onStart, onBack, rtl }: Props) {
   const { t } = useTranslation();
   return (
     <View style={styles.container}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} snapToInterval={306}>
+      <View style={[styles.header, rtl && styles.rowReverse]}>
+        <Pressable accessibilityRole="button" onPress={onBack} style={styles.backButton}>
+          <Text style={styles.backIcon}>{rtl ? "→" : "←"}</Text>
+        </Pressable>
+        <Text style={[styles.headerTitle, rtl && styles.rtl]}>{t("planRoute")}</Text>
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        snapToInterval={310}
+        decelerationRate="fast"
+        contentContainerStyle={rtl ? styles.rowReverse : undefined}
+      >
         {routes.map((route) => {
           const selected = route.id === selectedRouteId;
           const duration = t("metrics.minutes", { value: formatDuration(route.metrics.duration_s) });
           const distance = t("metrics.kilometers", { value: formatDistance(route.metrics.distance_m) });
+          const arrival = formatTelAvivTime(route.arrival_at, rtl ? "he" : "en");
+          const fallback = route.fallback_reason
+            ? t(`fallback.${route.fallback_reason}`, { defaultValue: "" })
+            : "";
+          const transitLeg = route.legs.find((leg) => leg.mode === "transit" && leg.transit);
           return (
             <Pressable
               key={route.id}
@@ -33,17 +56,51 @@ export function RouteCards({ routes, selectedRouteId, onSelect, onStart, rtl }: 
               onPress={() => onSelect(route)}
               style={[styles.card, selected && styles.cardSelected]}
             >
-              <View style={styles.headingRow}>
-                <Text style={[styles.name, rtl && styles.rtl]}>{t(routeLabelKey(route.label_key))}</Text>
-                <View style={[styles.confidence, route.quality.confidence === "low" && styles.low]}>
-                  <Text style={styles.confidenceText}>{route.quality.confidence}</Text>
+              <View style={[styles.headingRow, rtl && styles.rowReverse]}>
+                <Text style={[styles.name, rtl && styles.rtl]}>
+                  {t(routeLabelKey(route.label_key))}
+                </Text>
+                <View style={styles.confidence}>
+                  <Text style={styles.confidenceText}>
+                    {t(`confidence.${route.quality.confidence}`)}
+                  </Text>
                 </View>
               </View>
-              <View style={styles.primaryMetrics}>
+              <View style={[styles.primaryMetrics, rtl && styles.rowReverse]}>
                 <Text style={styles.duration}>{duration}</Text>
                 <Text style={styles.distance}>{distance}</Text>
               </View>
-              <View style={styles.metricRow}>
+              <Text style={[styles.arrival, rtl && styles.rtl]}>
+                {t("metrics.arrival", { value: arrival })}
+              </Text>
+              {transitLeg?.transit ? (
+                <View style={[styles.transitSummary, rtl && styles.rowReverse]}>
+                  <View style={styles.transitBadge}>
+                    <Text style={styles.transitBadgeText}>
+                      {transitLeg.transit.route_short_name || "●"}
+                    </Text>
+                  </View>
+                  <View style={styles.transitCopy}>
+                    <Text style={[styles.transitHeadsign, rtl && styles.rtl]} numberOfLines={1}>
+                      {transitLeg.transit.headsign || transitLeg.to_name}
+                    </Text>
+                    <Text style={[styles.transitTime, rtl && styles.rtl]} numberOfLines={1}>
+                      {t("metrics.transitDeparture", {
+                        value: formatTelAvivTime(
+                          transitLeg.transit.departure_at,
+                          rtl ? "he" : "en",
+                        ),
+                      })}
+                    </Text>
+                    {transitLeg.transit.vehicle_rule_source?.includes("folded-vehicle") ? (
+                      <Text style={[styles.vehicleRule, rtl && styles.rtl]} numberOfLines={1}>
+                        {t("metrics.foldBeforeBoarding")}
+                      </Text>
+                    ) : null}
+                  </View>
+                </View>
+              ) : null}
+              <View style={[styles.metricRow, rtl && styles.rowReverse]}>
                 {route.metrics.shade_fraction != null ? (
                   <Metric
                     color={colors.shade}
@@ -55,18 +112,42 @@ export function RouteCards({ routes, selectedRouteId, onSelect, onStart, rtl }: 
                     color={colors.mixed}
                     text={t("metrics.signalsAvoided", { value: route.metrics.signals_avoided })}
                   />
+                ) : route.metrics.traffic_signals != null ? (
+                  <Metric
+                    color={colors.mixed}
+                    text={t("metrics.signals", { value: route.metrics.traffic_signals })}
+                  />
                 ) : null}
-                {route.metrics.transfers ? (
+                {transitLeg ? (
                   <Metric
                     color={colors.transit}
                     text={t("metrics.transfers", { value: route.metrics.transfers })}
                   />
                 ) : null}
+                {transitLeg && route.metrics.walking_distance_m > 0 ? (
+                  <Metric
+                    color={colors.muted}
+                    text={t("metrics.walking", {
+                      value: formatDistance(route.metrics.walking_distance_m),
+                    })}
+                  />
+                ) : null}
               </View>
-              {route.warnings?.[0] ? (
-                <Text style={[styles.warning, rtl && styles.rtl]} numberOfLines={2}>
-                  {route.warnings[0]}
+              {fallback ? (
+                <Text style={[styles.note, rtl && styles.rtl]} numberOfLines={2}>
+                  {fallback}
                 </Text>
+              ) : null}
+              {transitLeg ? (
+                <Pressable
+                  accessibilityRole="link"
+                  onPress={() => void Linking.openURL("https://transitous.org/sources/")}
+                  style={styles.sourceLink}
+                >
+                  <Text style={[styles.sourceText, rtl && styles.rtl]}>
+                    {t("metrics.transitSource")}
+                  </Text>
+                </Pressable>
               ) : null}
             </Pressable>
           );
@@ -89,33 +170,80 @@ function Metric({ color, text }: { color: string; text: string }) {
 }
 
 const styles = StyleSheet.create({
-  container: { position: "absolute", left: spacing.md, right: spacing.md, bottom: spacing.lg },
-  card: {
-    width: 294, minHeight: 154, marginRight: spacing.md, padding: spacing.lg,
-    borderRadius: radius.lg, backgroundColor: colors.surface, borderWidth: 2,
-    borderColor: "transparent", ...shadow,
+  container: {
+    position: "absolute",
+    left: spacing.md,
+    right: spacing.md,
+    bottom: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    padding: spacing.md,
+    ...shadow,
   },
-  cardSelected: { borderColor: colors.primary },
-  headingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  name: { fontSize: 17, fontWeight: "800", color: colors.ink, flex: 1 },
+  header: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.sm },
+  rowReverse: { flexDirection: "row-reverse" },
+  backButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  backIcon: { color: colors.primaryDark, fontSize: 25, fontWeight: "800" },
+  headerTitle: { flex: 1, color: colors.ink, fontSize: 17, fontWeight: "900" },
+  card: {
+    width: 298,
+    minHeight: 172,
+    marginHorizontal: spacing.sm,
+    padding: spacing.lg,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  cardSelected: { borderColor: colors.primary, backgroundColor: "#F5F3FF" },
+  headingRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 6 },
+  name: { fontSize: 17, fontWeight: "900", color: colors.ink, flex: 1 },
   rtl: { textAlign: "right", writingDirection: "rtl" },
   confidence: {
-    borderRadius: radius.pill, backgroundColor: "#DCFCE7", paddingHorizontal: spacing.sm,
+    borderRadius: radius.pill,
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
   },
-  low: { backgroundColor: "#FEF3C7" },
-  confidenceText: { color: colors.muted, fontSize: 10, textTransform: "uppercase" },
+  confidenceText: { color: colors.success, fontSize: 10, fontWeight: "800" },
   primaryMetrics: { flexDirection: "row", gap: spacing.md, alignItems: "baseline", marginTop: spacing.sm },
-  duration: { fontSize: 26, fontWeight: "900", color: colors.primaryDark },
+  duration: { fontSize: 27, fontWeight: "900", color: colors.primaryDark },
   distance: { fontSize: 14, color: colors.muted },
+  arrival: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  transitSummary: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  transitBadge: {
+    minWidth: 34,
+    minHeight: 28,
+    borderRadius: radius.sm,
+    backgroundColor: colors.transit,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.sm,
+  },
+  transitBadgeText: { color: colors.surface, fontSize: 12, fontWeight: "900" },
+  transitCopy: { flex: 1, minWidth: 0 },
+  transitHeadsign: { color: colors.ink, fontSize: 12, fontWeight: "800" },
+  transitTime: { color: colors.muted, fontSize: 10, marginTop: 1 },
+  vehicleRule: { color: colors.primaryDark, fontSize: 10, fontWeight: "800", marginTop: 1 },
   metricRow: { flexDirection: "row", gap: spacing.md, flexWrap: "wrap", marginTop: spacing.sm },
   metric: { flexDirection: "row", gap: spacing.xs, alignItems: "center" },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  metricText: { fontSize: 12, fontWeight: "600", color: colors.ink },
-  warning: { fontSize: 11, color: colors.muted, marginTop: spacing.sm },
+  metricText: { fontSize: 12, fontWeight: "700", color: colors.ink },
+  note: { fontSize: 11, lineHeight: 15, color: colors.muted, marginTop: spacing.sm },
+  sourceLink: { minHeight: 44, justifyContent: "center", alignSelf: "stretch" },
+  sourceText: { color: colors.primary, fontSize: 11, fontWeight: "700" },
   startButton: {
-    minHeight: 54, marginTop: spacing.md, borderRadius: radius.md, backgroundColor: colors.primary,
-    alignItems: "center", justifyContent: "center", ...shadow,
+    minHeight: 54,
+    marginTop: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
   },
   startText: { color: colors.surface, fontSize: 18, fontWeight: "900" },
 });

@@ -4,7 +4,16 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "exactOptionalPropertyTypes": true,
-    "types": ["jest", "node"]
+    "types": [
+      "jest",
+      "node"
+    ]
   },
-  "include": ["app", "src", "__tests__", "expo-env.d.ts"]
+  "include": [
+    "app",
+    "src",
+    "__tests__",
+    "expo-env.d.ts",
+    ".expo/types/**/*.ts"
+  ]
 }

@@ -2,7 +2,7 @@ import * as SQLite from "expo-sqlite";
 
 import type { Coordinate, Locale, Place, SearchResponse } from "../../api/types";
 
-const DATABASE_VERSION = "mobile-search-demo-2026-08-02";
+const DATABASE_VERSION = "mobile-search-metro-2026-08-06";
 
 const SEED: Place[] = [
   place("osm:place:habima", "Habima Square", "כיכר הבימה", 32.0733, 34.7799, "square"),

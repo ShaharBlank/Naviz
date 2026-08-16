@@ -6,11 +6,12 @@ import {
   UserLocation,
 } from "@maplibre/maplibre-react-native";
 import { memo, useMemo } from "react";
-import { StyleSheet, View } from "react-native";
+import { useTranslation } from "react-i18next";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { decodePolyline } from "../api/polyline";
 import type { Coordinate, RouteAlternative } from "../api/types";
-import { colors } from "../theme/tokens";
+import { colors, radius, shadow, spacing } from "../theme/tokens";
 
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 
@@ -18,9 +19,18 @@ interface Props {
   route: RouteAlternative | null;
   userCoordinate: Coordinate | null;
   following: boolean;
+  onRecenter: () => void;
+  onOverview: () => void;
 }
 
-function NavizMapComponent({ route, userCoordinate, following }: Props) {
+function NavizMapComponent({
+  route,
+  userCoordinate,
+  following,
+  onRecenter,
+  onOverview,
+}: Props) {
+  const { t } = useTranslation();
   const geometry = useMemo(
     () => (route ? decodePolyline(route.encoded_polyline) : []),
     [route],
@@ -76,8 +86,13 @@ function NavizMapComponent({ route, userCoordinate, following }: Props) {
   );
 
   return (
-    <View style={styles.container} accessibilityLabel="Naviz map">
-      <Map style={styles.map} mapStyle={MAP_STYLE}>
+    <View style={styles.container} accessibilityLabel={t("accessibility.map")}>
+      <Map
+        style={styles.map}
+        mapStyle={MAP_STYLE}
+        attributionPosition={{ top: 48, right: 8 }}
+        logoPosition={{ top: 48, left: 8 }}
+      >
         {following ? (
           <Camera trackUserLocation="heading" zoom={17} />
         ) : route ? (
@@ -153,6 +168,26 @@ function NavizMapComponent({ route, userCoordinate, following }: Props) {
           </>
         ) : null}
       </Map>
+      <View style={styles.mapControls}>
+        {route && !following ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("overview")}
+            style={styles.mapButton}
+            onPress={onOverview}
+          >
+            <Text style={styles.mapButtonText}>▱</Text>
+          </Pressable>
+        ) : null}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("recenter")}
+          style={styles.mapButton}
+          onPress={onRecenter}
+        >
+          <Text style={styles.mapButtonText}>◎</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -162,4 +197,20 @@ export const NavizMap = memo(NavizMapComponent);
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#E5E7EB" },
   map: { flex: 1 },
+  mapControls: {
+    position: "absolute",
+    right: spacing.md,
+    bottom: 250,
+    gap: spacing.sm,
+  },
+  mapButton: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surface,
+    alignItems: "center",
+    justifyContent: "center",
+    ...shadow,
+  },
+  mapButtonText: { color: colors.primaryDark, fontSize: 24, fontWeight: "800" },
 });

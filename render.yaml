@@ -9,6 +9,20 @@ services:
       - key: NAVIZ_ENV
         value: production
       - key: NAVIZ_DATA_BUNDLE
-        value: demo-2026-08-02
+        value: metro-live-2026-08-16
+      - key: NAVIZ_LIVE_PROVIDERS
+        value: "true"
+      - key: NAVIZ_VALHALLA_URL
+        value: https://valhalla1.openstreetmap.de
+      - key: NAVIZ_TRANSITOUS_URL
+        value: https://api.transitous.org
+      - key: NAVIZ_PHOTON_URL
+        value: https://photon.komoot.io
+      - key: NAVIZ_OVERPASS_URL
+        value: https://overpass-api.de/api/interpreter
+      - key: NAVIZ_PROVIDER_CONTACT
+        value: https://github.com/ShaharBlank/Naviz
+      - key: NAVIZ_COVERAGE_BBOX
+        value: 34.69,31.94,34.93,32.20
       - key: NAVIZ_ALLOWED_ORIGINS
         value: https://naviz.app

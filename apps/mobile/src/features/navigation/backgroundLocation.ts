@@ -14,9 +14,14 @@ TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
 
 export async function requestNavigationPermission(): Promise<boolean> {
   const foreground = await Location.requestForegroundPermissionsAsync();
+  return foreground.status === "granted";
+}
+
+export async function requestBackgroundNavigationPermission(): Promise<boolean> {
+  const foreground = await Location.getForegroundPermissionsAsync();
   if (foreground.status !== "granted") return false;
   const background = await Location.requestBackgroundPermissionsAsync();
-  return background.status === "granted" || foreground.status === "granted";
+  return background.status === "granted";
 }
 
 export async function startBackgroundNavigation(): Promise<boolean> {

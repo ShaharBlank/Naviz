@@ -332,6 +332,8 @@ export interface components {
             id: string;
             /** Instruction Key */
             instruction_key: string;
+            /** Instruction Text */
+            instruction_text?: string | null;
             /** Modifier */
             modifier?: string | null;
             /** Street Name */
@@ -1076,6 +1078,7 @@ export interface operations {
             query: {
                 latitude: number;
                 longitude: number;
+                language?: components["schemas"]["Locale"];
             };
             header?: never;
             path?: never;

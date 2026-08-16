@@ -156,6 +156,7 @@ class SearchResponse(ApiModel):
 class Maneuver(ApiModel):
     id: str
     instruction_key: str
+    instruction_text: str | None = None
     modifier: str | None = None
     street_name: str | None = None
     distance_m: float

@@ -790,12 +790,15 @@ version = "0.1.0"
 source = { editable = "apps/api" }
 dependencies = [
     { name = "alembic" },
+    { name = "astral" },
     { name = "asyncpg" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
+    { name = "pyproj" },
     { name = "python-jose", extra = ["cryptography"] },
+    { name = "shapely" },
     { name = "sqlalchemy", extra = ["asyncio"] },
     { name = "tzdata" },
     { name = "uvicorn", extra = ["standard"] },
@@ -816,6 +819,7 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
     { name = "ruff" },
+    { name = "types-shapely" },
 ]
 postgres = [
     { name = "geoalchemy2" },
@@ -824,6 +828,7 @@ postgres = [
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.16,<2" },
+    { name = "astral", specifier = ">=3.2,<4" },
     { name = "astral", marker = "extra == 'data'", specifier = ">=3.2,<4" },
     { name = "asyncpg", specifier = ">=0.30,<1" },
     { name = "fastapi", specifier = ">=0.116,<1" },
@@ -834,6 +839,7 @@ requires-dist = [
     { name = "numpy", marker = "extra == 'data'", specifier = ">=2.2,<3" },
     { name = "pydantic", specifier = ">=2.11,<3" },
     { name = "pydantic-settings", specifier = ">=2.10,<3" },
+    { name = "pyproj", specifier = ">=3.7,<4" },
     { name = "pyproj", marker = "extra == 'data'", specifier = ">=3.7,<4" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4,<9" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=1.0,<2" },
@@ -841,8 +847,10 @@ requires-dist = [
     { name = "python-jose", extras = ["cryptography"], specifier = ">=3.5,<4" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.12,<1" },
     { name = "scipy", marker = "extra == 'data'", specifier = ">=1.15,<2" },
+    { name = "shapely", specifier = ">=2.1,<3" },
     { name = "shapely", marker = "extra == 'data'", specifier = ">=2.1,<3" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.40,<3" },
+    { name = "types-shapely", marker = "extra == 'dev'", specifier = ">=2.1,<3" },
     { name = "tzdata", specifier = ">=2025.2" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.35,<1" },
 ]
@@ -1468,6 +1476,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/eb/e3/7c1dc7381d9f8ab7d854328ebfa884e62cb3f3d8549ddfd37c7814f42afa/starlette-1.3.1.tar.gz", hash = "sha256:05d0213193f2fbaae60e2ecb593b4add4262ad4e46536b54abe36f11a71724e0", size = 2703240, upload-time = "2026-06-12T09:23:11.602Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ec/bb/2799cc2ede3ed41131f8975621e7213dfc7ef4acbbaadfa440f32500c370/starlette-1.3.1-py3-none-any.whl", hash = "sha256:c7372aae11c3c3f26a42df7bd626cec2f47d03483d261d369516a615a53714c6", size = 73632, upload-time = "2026-06-12T09:23:10.017Z" },
+]
+
+[[package]]
+name = "types-shapely"
+version = "2.1.0.20260728"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/be/cf/1ea740a3532b6e4cdeae8ba121618eb58a543eba2721016d358e4c0992e3/types_shapely-2.1.0.20260728.tar.gz", hash = "sha256:8ec23a5aa484c1ec7bbc56aa353cc230ae63e38e0f35a6e4b79a011d99bcfcc2", size = 27501, upload-time = "2026-07-28T04:51:41.724Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/79/8d/2e6c38118cc6b20075ccd1609840314aa8a694a255a09149b185d8a608e1/types_shapely-2.1.0.20260728-py3-none-any.whl", hash = "sha256:7299a62025528b3f0cc5af37095f05fbe7d76d399bdc8d7ea9b3d395e988f547", size = 38539, upload-time = "2026-07-28T04:51:40.638Z" },
 ]
 
 [[package]]

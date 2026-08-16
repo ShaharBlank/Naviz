@@ -1,4 +1,4 @@
-# Naviz Android preview release
+# Naviz Android releases
 
 ## 0.1.0 (version code 1)
 
@@ -22,7 +22,5 @@ present in the release bundle. Expo's Android build completed successfully using
 its managed remote signing credentials; no private signing material is stored in
 this repository.
 
-This is a public-beta showcase build backed by the pinned
-`demo-2026-08-02` Tel Aviv fixture. It must not be used as a safety-critical or
-production navigation system until the real OSM/GTFS/shade bundles and field
-acceptance gates in `docs/acceptance.md` are complete.
+Version 0.1.0 is superseded by the metropolitan 0.2.0 build. The new build uses
+the hosted regional provider profile; deterministic fixtures remain CI-only.

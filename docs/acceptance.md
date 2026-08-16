@@ -1,8 +1,9 @@
-# Public-beta acceptance gates
+# Metropolitan MVP acceptance gates
 
-The bundled graph and schedules are deliberately labelled as demo data. They are
-not acceptable for field navigation. A regional artifact can be promoted only
-after all automated and field gates pass.
+The checked-in fixture is used only by deterministic tests. Deployed builds are
+configured to fail startup unless all regional providers are present; they never
+fall back to fixture routes. The gates below define continued field validation
+and the threshold for expanding coverage beyond metropolitan Tel Aviv.
 
 ## Automated gates
 
@@ -28,4 +29,3 @@ after all automated and field gates pass.
   no critical defects.
 
 Field observations use random test identifiers and never retain participant identity.
-

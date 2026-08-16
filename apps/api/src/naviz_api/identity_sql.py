@@ -57,7 +57,7 @@ class SqlAlchemyIdentityRepository:
         self._sessions = async_sessionmaker(self._engine, expire_on_commit=False)
 
     async def initialize(self) -> None:
-        # Keeps the zero-ops beta deployable. Alembic owns controlled schema changes.
+        # Keeps the zero-ops deployment simple. Alembic owns controlled schema changes.
         async with self._engine.begin() as connection:
             await connection.run_sync(Base.metadata.create_all)
 

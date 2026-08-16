@@ -12,11 +12,22 @@ export function formatDistance(meters: number): number {
   return Math.round((meters / 1_000) * 10) / 10;
 }
 
+export function formatTelAvivTime(value: string, locale: "he" | "en"): string {
+  return new Date(value).toLocaleTimeString(locale === "he" ? "he-IL" : "en-IL", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Asia/Jerusalem",
+  });
+}
+
 export function maneuverText(
   maneuver: Maneuver | undefined,
   translate: (key: string, values?: Record<string, string>) => string,
+  preferEngineText = false,
 ): string {
   if (!maneuver) return "";
+  if (preferEngineText && maneuver.instruction_text) return maneuver.instruction_text;
   if (maneuver.instruction_key === "navigation.arrive") return translate("navigation.arrive");
   const modifier = maneuver.modifier
     ? translate(`navigation.${maneuver.modifier}`)

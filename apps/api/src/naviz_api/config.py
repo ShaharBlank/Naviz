@@ -26,7 +26,14 @@ class Settings(BaseSettings):
     gbfs_feeds: tuple[str, ...] = ()
     valhalla_url: str | None = None
     otp_url: str | None = None
+    transitous_url: str | None = None
+    photon_url: str | None = None
+    overpass_url: str | None = None
+    provider_contact: str = "https://github.com/ShaharBlank/Naviz"
+    live_providers: bool = False
+    coverage_bbox: tuple[float, float, float, float] = (34.69, 31.94, 34.93, 32.20)
     route_ttl_seconds: int = 900
+    provider_cache_seconds: int = 300
     gbfs_ttl_seconds: int = 30
     gbfs_stale_seconds: int = 120
 
@@ -35,6 +42,13 @@ class Settings(BaseSettings):
     def split_csv(cls, value: object) -> object:
         if isinstance(value, str):
             return tuple(part.strip() for part in value.split(",") if part.strip())
+        return value
+
+    @field_validator("coverage_bbox", mode="before")
+    @classmethod
+    def split_bbox(cls, value: object) -> object:
+        if isinstance(value, str):
+            return tuple(float(part.strip()) for part in value.split(","))
         return value
 
     @property

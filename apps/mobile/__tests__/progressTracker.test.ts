@@ -25,5 +25,21 @@ describe("ProgressTracker", () => {
       tracker.update({ coordinate: route[2]!, accuracyM: 5, headingDegrees: null }).arrived,
     ).toBe(true);
   });
-});
 
+  it("matches the line between sparse vertices instead of reporting off-route", () => {
+    const tracker = new ProgressTracker(route);
+    const midpoint = {
+      latitude: (route[0]!.latitude + route[1]!.latitude) / 2,
+      longitude: (route[0]!.longitude + route[1]!.longitude) / 2,
+    };
+    const match = tracker.update({
+      coordinate: midpoint,
+      accuracyM: 5,
+      headingDegrees: null,
+    });
+    expect(match.distanceM).toBeLessThan(2);
+    expect(match.offRoute).toBe(false);
+    expect(match.progressFraction).toBeGreaterThan(0);
+    expect(match.remainingDistanceM).toBeLessThan(1_500);
+  });
+});

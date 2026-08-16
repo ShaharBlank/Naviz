@@ -1,8 +1,11 @@
 # Naviz
 
-Naviz is an open, Hebrew-first navigation beta for Tel Aviv-Yafo. This monorepo
-contains an executable product vertical slice for shaded walking, personal
-bicycle/scooter + scheduled transit, and low-traffic-signal road alternatives.
+Licensed under the [Apache License 2.0](LICENSE).
+
+Naviz is a Hebrew-first navigation MVP for metropolitan Tel Aviv. The Android
+and iOS application covers Tel Aviv-Yafo, Ramat Gan, Givatayim, Bnei Brak, Bat
+Yam, Holon, and nearby corridors with live regional search and street routing,
+scheduled public transport, shaded walking, and low-traffic-signal alternatives.
 
 ## What is implemented
 
@@ -23,10 +26,9 @@ bicycle/scooter + scheduled transit, and low-traffic-signal road alternatives.
 - Immutable checksummed bundle contract, OpenAPI-generated TypeScript types,
   Alembic migrations, Docker/Render configs, CI, dependency audit, and SBOM job.
 
-The checked-in `demo-2026-08-02` graph and search index are deterministic UI and
-contract fixtures. They are deliberately labelled **not for real navigation**.
-Real OSM/GTFS/building/canopy/crossing/PMTiles artifacts and the field corpus are
-deployment inputs, not fabricated by this repository.
+The deployed application uses regional providers and never serves the checked-in
+fixture. `artifacts/demo` remains a deterministic, test-only graph used to prove
+route invariants and API compatibility without making network calls in CI.
 
 ## Repository
 
@@ -87,4 +89,4 @@ npx expo export --platform android --output-dir dist\android-bundle
 ```
 
 See [deployment](docs/deployment.md), [implementation status](docs/status.md),
-and [acceptance gates](docs/acceptance.md) before treating a build as a public beta.
+and [acceptance gates](docs/acceptance.md) for the remaining field-validation work.

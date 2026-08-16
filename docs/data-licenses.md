@@ -2,7 +2,7 @@
 
 - OpenStreetMap-derived artifacts must retain © OpenStreetMap contributors and
   ODbL attribution. No public OSM tile server is used for bulk/offline tiles.
-- OpenFreeMap is the online beta style/tile provider and MapLibre is the renderer;
+- OpenFreeMap is the online style/tile provider and MapLibre is the renderer;
   the map UI must keep visible OSM/provider attribution in release builds.
 - Israel GTFS is downloaded by a separately reviewed build workflow and records
   its source timestamp and terms in the manifest.
@@ -12,7 +12,12 @@
 - Municipal building/tree/crossing inputs are accepted only when redistribution
   and derived-artifact terms are recorded in the bundle manifest.
 
-The demo artifact contains no upstream geographic or transit dataset. Its
+Transit routes in the hosted regional profile are calculated by Transitous/MOTIS.
+The mobile route card links visibly to the Transitous source list, and the API
+sends an identifying contact User-Agent. Transitous may log route coordinates and
+request metadata for up to two days under its published privacy policy.
+
+The test artifact contains no upstream geographic or transit dataset. Its
 manifest is checksum-validated in CI and contains explicit fixture attribution.
 
 ShadoWalk (`3fd6c37`) and Umbra (`f1bfb419`) were reviewed as user-provided
