@@ -61,4 +61,23 @@ describe("SearchPanel localization and controls", () => {
     expect(screen.getByLabelText("שמירה למועדפים")).toBeTruthy();
     expect(screen.getByText("צל מאוזן")).toBeTruthy();
   });
+
+  it("shows live shared-vehicle availability for rental transit", async () => {
+    await i18n.changeLanguage("en");
+    const screen = render(
+      <SearchPanel
+        {...defaults}
+        locale="en"
+        query="Rabin Square"
+        selectedDestination={rabin}
+        mode="rental_transit"
+        preference="fewer_transfers"
+        mobilityCount={12}
+      />,
+    );
+
+    expect(
+      screen.getByText("12 vehicles nearby · tap a map dot to open the operator app"),
+    ).toBeTruthy();
+  });
 });

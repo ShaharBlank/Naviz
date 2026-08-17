@@ -28,3 +28,4 @@ data/artifacts/
 data/downloads/
 artifacts/release/*.apk
 artifacts/emulator/
+artifacts/export/

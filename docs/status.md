@@ -5,7 +5,8 @@
 The mobile application and API run the complete journey: search, plan, compare,
 preview, navigate, match location to route progress, reroute, and arrive. The
 hosted profile uses real metropolitan search and street data, scheduled public
-transport, live corridor building and traffic-signal context, and never returns
+transport, live corridor building and traffic-signal context, and Dott's live
+Tel Aviv shared-scooter availability with operator deep links. It never returns
 the deterministic CI fixture.
 
 The Android development build has been exercised on an Android 16 Pixel emulator
@@ -30,8 +31,9 @@ fold-and-carry behavior for folding vehicles.
 
 ## Continued hardening
 
-- Add provider-approved GBFS feeds as each operator's license and deep-link flow
-  is confirmed; no synthetic shared vehicles are shown when none are configured.
+- Add further provider-approved GBFS feeds as each operator's license and
+  deep-link flow is confirmed. Dott is enabled under CC-BY-4.0; no synthetic
+  shared vehicles are shown.
 - Package metropolitan PMTiles for broader offline map coverage.
 - Complete physical-device shade, multimodal, traffic-signal, accessibility, and
   battery field corpora defined in `docs/acceptance.md`.

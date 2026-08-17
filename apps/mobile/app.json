@@ -2,7 +2,7 @@
   "expo": {
     "name": "Naviz",
     "slug": "naviz",
-    "version": "0.2.1",
+    "version": "0.3.0",
     "orientation": "portrait",
     "scheme": "naviz",
     "userInterfaceStyle": "light",
@@ -21,12 +21,15 @@
           "isAndroidBackgroundLocationEnabled": true
         }
       ],
-      "expo-splash-screen"
+      "expo-splash-screen",
+      "expo-localization",
+      "expo-sqlite",
+      "expo-status-bar"
     ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.naviz.mobile",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "infoPlist": {
         "UIBackgroundModes": [
           "location"
@@ -36,7 +39,7 @@
     },
     "android": {
       "package": "app.naviz.mobile",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "backgroundColor": "#111827"
       },
