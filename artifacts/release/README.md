@@ -1,5 +1,31 @@
 # Naviz Android releases
 
+## 0.3.1 (version code 5)
+
+- File: `Naviz-0.3.1-metropolitan.apk`
+- Size: 148,404,890 bytes
+- SHA-256: `E354F69307389A659FC2971666889567CD154C5C85AC6DC74710242D2A49F118`
+- Package: `app.naviz.mobile`
+- Android SDK: minimum 24, target 36
+- Expo SDK: 57
+- Build profile: `preview` (internal APK distribution)
+- Build ID: `be90e304-e999-463c-9f53-b6364c519c2c`
+- Source commit: `ae6f5d3fa46d6de8f668efe0e43c1fe97713bbf0`
+- Backend embedded at bundle time: <https://naviz-api.onrender.com>
+- Build page:
+  <https://expo.dev/accounts/shaharblank/projects/naviz/builds/be90e304-e999-463c-9f53-b6364c519c2c>
+- CI:
+  <https://github.com/ShaharBlank/Naviz/actions/runs/32004099712>
+
+Local verification confirmed the manifest, version, all four Android native
+architectures, location/background permissions, production API URL, corrected
+bilingual shared-mobility messaging, and APK v2 signature. `apksigner` reports
+one RSA-2048 signer with certificate SHA-256
+`0A982BB78F2E1223947EE210431522DD8011CC98B03650D6F57B3C22795673CE`.
+The exact APK was clean-installed on an Android 16 Pixel emulator and exercised
+against the deployed backend for GPS permissions, route comparison, active and
+background navigation, progress, rerouting, and live Dott/transit presentation.
+
 ## 0.2.0 (version code 2)
 
 - File: `Naviz-0.2.0-metropolitan.apk`

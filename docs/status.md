@@ -9,19 +9,19 @@ transport, live corridor building and traffic-signal context, and Dott's live
 Tel Aviv shared-scooter availability with operator deep links. It never returns
 the deterministic CI fixture.
 
-The Android development build has been exercised on an Android 16 Pixel emulator
+The signed Android 0.3.1 APK has been exercised on an Android 16 Pixel emulator
 for permissions, fresh GPS acquisition, Hebrew RTL and English LTR, keyboard and
-search behavior, shaded walking, scheduled transit, driving, foreground and
-background navigation, three-fix off-route hysteresis, rerouting, progress, and
-arrival. Strict TypeScript, ESLint, Jest, Ruff, mypy, pytest, contract generation,
-and Expo dependency checks are release gates.
+search behavior, shaded walking, scheduled transit, live Dott availability,
+foreground and background navigation, three-fix off-route hysteresis, rerouting,
+progress, and arrival. Strict TypeScript, ESLint, Jest, Ruff, mypy, pytest,
+contract generation, and Expo dependency checks are release gates.
 
 The release audit has no critical npm findings. It still reports upstream
-high-severity advisories in Expo/Metro's local image parser and an iOS project
-generation dependency; neither package is included in the Android runtime
-bundle, and npm currently offers no SDK-56-compatible patched resolution. CI
-reports those findings, blocks critical findings, and Dependabot checks weekly
-for a compatible upstream fix.
+high-severity advisories through Expo/Metro's local build tooling. npm's offered
+remediation is an incompatible downgrade from Expo SDK 57 and React Native 0.86;
+the production Hermes bundle does not expose those local build-server paths. CI
+reports the findings, blocks critical findings, and Dependabot checks weekly for
+a compatible upstream fix.
 
 Shade exposure is evaluated from the real route geometry, current solar position,
 and OpenStreetMap building footprints. Low-signal routes use mapped signal nodes

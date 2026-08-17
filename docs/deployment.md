@@ -9,7 +9,7 @@
 - Source repository: <https://github.com/ShaharBlank/Naviz> (Apache-2.0)
 - Expo project: <https://expo.dev/accounts/shaharblank/projects/naviz>
 - Android build:
-  <https://expo.dev/accounts/shaharblank/projects/naviz/builds/89413540-34e6-4894-88a8-12f360f39d60>
+  <https://expo.dev/accounts/shaharblank/projects/naviz/builds/be90e304-e999-463c-9f53-b6364c519c2c>
 
 The Android `preview` profile embeds `https://naviz-api.onrender.com` as
 `EXPO_PUBLIC_API_URL`. The public EAS artifact is temporary; the verified local
@@ -49,9 +49,10 @@ PostgreSQL. GPS fixes and anonymous origin/destination coordinates are not.
 ## Mobile
 
 Set `EXPO_PUBLIC_API_URL`, run `eas init`, and create a development build before
-testing MapLibre/background navigation. `eas build --platform android --profile
-preview` produces an internal APK. The iOS development profile requires a valid
-signing team; simulator/personal-team and Android remain the zero-cost paths.
+testing MapLibre/background navigation. Expo SDK 57 is the pinned mobile runtime.
+`eas build --platform android --profile preview` produces an internal APK. The
+iOS development profile requires a valid signing team; simulator/personal-team
+and Android remain the zero-cost paths.
 
 The repository contains the public EAS project ID needed for reproducible builds,
 but does not contain signing keys, provider secrets, or a fake live-data URL.
