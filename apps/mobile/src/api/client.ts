@@ -10,10 +10,9 @@ import type {
 } from "./types";
 import { offlineSearchPlaces } from "../features/search/offlineSearch";
 
-const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000").replace(
-  /\/$/,
-  "",
-);
+const API_URL = (
+  process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:8000"
+).replace(/\/$/, "");
 
 export class ApiError extends Error {
   constructor(
@@ -30,7 +29,11 @@ export class ApiError extends Error {
   }
 }
 
-async function fetchJson<T>(path: string, init?: RequestInit, timeoutMs = 20_000): Promise<T> {
+async function fetchJson<T>(
+  path: string,
+  init?: RequestInit,
+  timeoutMs = 20_000,
+): Promise<T> {
   const controller = new AbortController();
   const abortFromCaller = () => controller.abort();
   if (init?.signal?.aborted) controller.abort();
@@ -63,7 +66,8 @@ async function fetchJson<T>(path: string, init?: RequestInit, timeoutMs = 20_000
     return (await response.json()) as T;
   } catch (error) {
     if (error instanceof ApiError) throw error;
-    const message = error instanceof Error ? error.message : "Network request failed";
+    const message =
+      error instanceof Error ? error.message : "Network request failed";
     throw new ApiError(message, null, "network_error");
   } finally {
     clearTimeout(timer);
@@ -76,7 +80,11 @@ export async function searchPlaces(
   locale: Locale,
   proximity?: Coordinate,
 ): Promise<SearchResponse> {
-  const parameters = new URLSearchParams({ q: query, language: locale, limit: "8" });
+  const parameters = new URLSearchParams({
+    q: query,
+    language: locale,
+    limit: "8",
+  });
   if (proximity) {
     parameters.set("latitude", String(proximity.latitude));
     parameters.set("longitude", String(proximity.longitude));
@@ -95,20 +103,30 @@ export function planRoute(
 ): Promise<RoutePlanResponse> {
   return fetchJson(
     "/v1/routes/plan",
-    { method: "POST", body: JSON.stringify(payload), ...(signal ? { signal } : {}) },
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+      ...(signal ? { signal } : {}),
+    },
     90_000,
   );
 }
 
 export function reroute(
-  payload: Omit<RoutePlanRequest, "origin"> & {
+  payload: Omit<RoutePlanRequest, "origin" | "include_comparisons"> & {
     current_position: Coordinate;
     original_route_id: string;
     heading_degrees?: number;
     accuracy_m?: number;
   },
 ): Promise<RoutePlanResponse> {
-  const { current_position, original_route_id, heading_degrees, accuracy_m, ...request } = payload;
+  const {
+    current_position,
+    original_route_id,
+    heading_degrees,
+    accuracy_m,
+    ...request
+  } = payload;
   return fetchJson(
     "/v1/routes/reroute",
     {
@@ -129,7 +147,9 @@ export function getDataStatus(): Promise<DataStatus> {
   return fetchJson("/v1/data/status", undefined, 8_000);
 }
 
-export function getMobilityVehicles(center: Coordinate): Promise<MobilityResponse> {
+export function getMobilityVehicles(
+  center: Coordinate,
+): Promise<MobilityResponse> {
   // Roughly a one-kilometre walking catchment in metropolitan Tel Aviv.
   // Keeping the view local avoids an unreadable wall of fleet markers.
   const latitudeRadius = 0.008;
@@ -140,5 +160,9 @@ export function getMobilityVehicles(center: Coordinate): Promise<MobilityRespons
     max_latitude: String(center.latitude + latitudeRadius),
     max_longitude: String(center.longitude + longitudeRadius),
   });
-  return fetchJson(`/v1/mobility/vehicles?${parameters.toString()}`, undefined, 12_000);
+  return fetchJson(
+    `/v1/mobility/vehicles?${parameters.toString()}`,
+    undefined,
+    12_000,
+  );
 }

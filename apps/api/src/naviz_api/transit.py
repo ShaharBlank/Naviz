@@ -20,6 +20,7 @@ from .models import (
     TravelMode,
     VehicleKind,
 )
+from .route_comparison import transit_comparison_routes
 from .routing import StreetRouter, build_annotations, build_maneuvers, normalize_departure
 
 
@@ -103,10 +104,13 @@ class RangeRaptor:
                 "operator rules are conservative."
             )
         candidates.sort(key=lambda item: (item[0], len(item[2].rides)))
-        return [
+        routes = [
             self._to_alternative(request, departure, stop_id, label, egress, expires_in_s)
             for _, stop_id, label, egress in candidates[:3]
         ]
+        if request.include_comparisons:
+            return transit_comparison_routes(routes, request.preference)
+        return routes
 
     def _initial_labels(
         self, request: RoutePlanRequest, departure: datetime, access_mode: TravelMode

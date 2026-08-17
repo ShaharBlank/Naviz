@@ -34,6 +34,8 @@ MODE_SPEED_MPS: dict[TravelMode, float] = {
     TravelMode.TRUCK: 8.5,
 }
 
+ROAD_MODES = {TravelMode.CAR, TravelMode.MOTORCYCLE, TravelMode.TRUCK}
+
 
 @dataclass(frozen=True, slots=True)
 class PlannedPath:
@@ -66,7 +68,27 @@ class StreetRouter:
                 fastest = updated
         planned = [PlannedPath("route.fastest", fastest)]
 
-        if request.mode == TravelMode.WALK and request.preference in {
+        if request.mode == TravelMode.WALK and request.include_comparisons:
+            balanced = self._best_shaded(
+                request, departure, fastest, self._shade_cap(request, 15.0)
+            )
+            maximum = self._best_shaded(request, departure, fastest, self._shade_cap(request, 30.0))
+            shade_routes = [
+                PlannedPath("route.fastest", fastest),
+                PlannedPath("route.balancedShade", balanced),
+                PlannedPath("route.maximumShade", maximum),
+            ]
+            preferred_label = {
+                RoutePreference.BALANCED_SHADE: "route.balancedShade",
+                RoutePreference.MAXIMUM_SHADE: "route.maximumShade",
+            }.get(request.preference, "route.fastest")
+            planned = sorted(
+                shade_routes,
+                key=lambda item: (item.label_key != preferred_label, shade_routes.index(item)),
+            )
+            if all(item.path.edges == fastest.edges for item in shade_routes[1:]):
+                planned[0] = PlannedPath("route.fastest", fastest, "least_exposed_route")
+        elif request.mode == TravelMode.WALK and request.preference in {
             RoutePreference.BALANCED_SHADE,
             RoutePreference.MAXIMUM_SHADE,
         }:
@@ -80,25 +102,33 @@ class StreetRouter:
                 )
                 planned.insert(0, PlannedPath(label, preferred))
             else:
-                planned[0] = PlannedPath(
-                    planned[0].label_key,
-                    fastest,
-                    "No shaded alternative satisfies the detour limit.",
-                )
-        elif request.preference == RoutePreference.FEWER_LIGHTS:
+                planned[0] = PlannedPath("route.fastest", fastest, "least_exposed_route")
+        elif request.mode in ROAD_MODES and (
+            request.include_comparisons or request.preference == RoutePreference.FEWER_LIGHTS
+        ):
             low_signal = self._fewer_lights(request, departure, fastest)
             if low_signal is not None:
-                planned.insert(0, PlannedPath("route.fewerLights", low_signal))
+                low_signal_route = PlannedPath("route.fewerLights", low_signal)
+                if request.preference == RoutePreference.FEWER_LIGHTS:
+                    planned.insert(0, low_signal_route)
+                else:
+                    planned.append(low_signal_route)
             else:
                 planned[0] = PlannedPath(
                     "route.fastest",
                     fastest,
-                    "No materially lower-signal route satisfies the detour limits.",
+                    "no_material_signal_reduction",
                 )
-        elif request.preference == RoutePreference.SAFER_STREETS:
+        elif request.mode in {TravelMode.BIKE, TravelMode.SCOOTER} and (
+            request.include_comparisons or request.preference == RoutePreference.SAFER_STREETS
+        ):
             comfortable = self._safer_streets(request, departure, fastest)
             if comfortable.edges != fastest.edges:
-                planned.insert(0, PlannedPath("route.saferStreets", comfortable))
+                comfortable_route = PlannedPath("route.saferStreets", comfortable)
+                if request.preference == RoutePreference.SAFER_STREETS:
+                    planned.insert(0, comfortable_route)
+                else:
+                    planned.append(comfortable_route)
 
         return [
             self._to_alternative(
@@ -214,8 +244,16 @@ class StreetRouter:
         material = reduction >= 2 or (
             len(fastest.signal_ids) > 0 and reduction / len(fastest.signal_ids) >= 0.2
         )
-        time_cap = request.constraints.maximum_time_detour_percent or 10.0
-        distance_cap = request.constraints.maximum_distance_detour_percent or 15.0
+        time_cap = (
+            request.constraints.maximum_time_detour_percent
+            if request.constraints.maximum_time_detour_percent is not None
+            else 10.0
+        )
+        distance_cap = (
+            request.constraints.maximum_distance_detour_percent
+            if request.constraints.maximum_distance_detour_percent is not None
+            else 15.0
+        )
         if not material:
             return None
         if candidate.duration_s > fastest.duration_s * (1 + time_cap / 100):
@@ -252,6 +290,12 @@ class StreetRouter:
         if request.constraints.maximum_time_detour_percent is not None:
             return request.constraints.maximum_time_detour_percent
         return 15.0 if request.preference == RoutePreference.BALANCED_SHADE else 30.0
+
+    @staticmethod
+    def _shade_cap(request: RoutePlanRequest, default: float) -> float:
+        if request.constraints.maximum_time_detour_percent is not None:
+            return request.constraints.maximum_time_detour_percent
+        return default
 
     def _to_alternative(
         self,
@@ -317,7 +361,7 @@ class StreetRouter:
             else None,
             signals_avoided=(
                 max(0, len(fastest.signal_ids) - len(path.signal_ids))
-                if request.preference == RoutePreference.FEWER_LIGHTS
+                if planned.label_key == "route.fewerLights"
                 else None
             ),
             detour_time_percent=_percent(path.duration_s, fastest.duration_s),

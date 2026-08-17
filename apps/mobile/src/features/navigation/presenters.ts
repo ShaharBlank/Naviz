@@ -13,12 +13,15 @@ export function formatDistance(meters: number): number {
 }
 
 export function formatTelAvivTime(value: string, locale: "he" | "en"): string {
-  return new Date(value).toLocaleTimeString(locale === "he" ? "he-IL" : "en-IL", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "Asia/Jerusalem",
-  });
+  return new Date(value).toLocaleTimeString(
+    locale === "he" ? "he-IL" : "en-IL",
+    {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: "Asia/Jerusalem",
+    },
+  );
 }
 
 export function maneuverText(
@@ -27,8 +30,10 @@ export function maneuverText(
   preferEngineText = false,
 ): string {
   if (!maneuver) return "";
-  if (preferEngineText && maneuver.instruction_text) return maneuver.instruction_text;
-  if (maneuver.instruction_key === "navigation.arrive") return translate("navigation.arrive");
+  if (preferEngineText && maneuver.instruction_text)
+    return maneuver.instruction_text;
+  if (maneuver.instruction_key === "navigation.arrive")
+    return translate("navigation.arrive");
   const modifier = maneuver.modifier
     ? translate(`navigation.${maneuver.modifier}`)
     : translate("navigation.straight");
@@ -43,7 +48,12 @@ export function secondaryMetrics(route: RouteAlternative): string[] {
   if (route.metrics.shade_fraction != null) {
     result.push(`${Math.round(route.metrics.shade_fraction * 100)}% shade`);
   }
-  if (route.metrics.signals_avoided) result.push(`${route.metrics.signals_avoided} fewer lights`);
-  if (route.metrics.transfers) result.push(`${route.metrics.transfers} transfers`);
+  if (route.metrics.traffic_signals != null) {
+    result.push(`${route.metrics.traffic_signals} lights`);
+  }
+  if (route.metrics.signals_avoided)
+    result.push(`${route.metrics.signals_avoided} fewer lights`);
+  if (route.metrics.transfers)
+    result.push(`${route.metrics.transfers} transfers`);
   return result;
 }

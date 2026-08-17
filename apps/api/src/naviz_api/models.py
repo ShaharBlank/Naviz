@@ -87,6 +87,7 @@ class RoutePlanRequest(ApiModel):
     locale: Locale = Locale.HEBREW
     mode: TravelMode = TravelMode.WALK
     preference: RoutePreference = RoutePreference.FASTEST
+    include_comparisons: bool = True
     vehicle: VehicleProfile = Field(default_factory=VehicleProfile)
     accessibility: AccessibilityPreferences = Field(default_factory=AccessibilityPreferences)
     constraints: RouteConstraints = Field(default_factory=RouteConstraints)
@@ -131,6 +132,7 @@ class RerouteRequest(ApiModel):
             locale=self.locale,
             mode=self.mode,
             preference=self.preference,
+            include_comparisons=False,
             vehicle=self.vehicle,
             accessibility=self.accessibility,
             constraints=self.constraints,

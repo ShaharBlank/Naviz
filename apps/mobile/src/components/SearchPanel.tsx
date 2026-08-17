@@ -14,7 +14,8 @@ import {
 import type { Place, RoutePreference, TravelMode } from "../api/types";
 import { colors, radius, shadow, spacing } from "../theme/tokens";
 
-export type LocationStatus = "idle" | "locating" | "ready" | "denied" | "unavailable";
+export type LocationStatus =
+  "idle" | "locating" | "ready" | "denied" | "unavailable";
 
 interface Props {
   query: string;
@@ -66,8 +67,10 @@ const MODE_ICONS: Record<TravelMode, string> = {
 
 function preferencesFor(mode: TravelMode): RoutePreference[] {
   if (mode === "walk") return ["fastest", "balanced_shade", "maximum_shade"];
-  if (["car", "motorcycle", "truck"].includes(mode)) return ["fastest", "fewer_lights"];
-  if (mode === "bike" || mode === "scooter") return ["fastest", "safer_streets"];
+  if (["car", "motorcycle", "truck"].includes(mode))
+    return ["fastest", "fewer_lights"];
+  if (mode === "bike" || mode === "scooter")
+    return ["fastest", "safer_streets"];
   return ["fastest", "fewer_transfers"];
 }
 
@@ -78,6 +81,11 @@ export function SearchPanel(props: Props) {
   const [showMoreModes, setShowMoreModes] = useState(
     MORE_MODES.includes(props.mode),
   );
+  const [collapsedDestinationId, setCollapsedDestinationId] = useState<
+    string | null
+  >(null);
+  const modeSelectorExpanded =
+    collapsedDestinationId !== props.selectedDestination?.id;
   const favoriteSelected = props.favorites.some(
     (place) => place.id === props.selectedDestination?.id,
   );
@@ -99,8 +107,13 @@ export function SearchPanel(props: Props) {
       <View style={styles.handle} />
       <View style={[styles.brandRow, rtl && styles.rowReverse]}>
         <View style={styles.brandCopy}>
-          <Text style={[styles.brand, rtl && styles.rtlText]}>{t("appName")}</Text>
-          <Text style={[styles.tagline, rtl && styles.rtlText]} numberOfLines={1}>
+          <Text style={[styles.brand, rtl && styles.rtlText]}>
+            {t("appName")}
+          </Text>
+          <Text
+            style={[styles.tagline, rtl && styles.rtlText]}
+            numberOfLines={1}
+          >
             {t("tagline")}
           </Text>
         </View>
@@ -161,14 +174,22 @@ export function SearchPanel(props: Props) {
         {props.query.length > 0 &&
         (!props.selectedDestination || editingDestination) &&
         props.results.length > 0 ? (
-          <PlaceRows places={props.results.slice(0, 6)} rtl={rtl} onSelect={props.onSelect} />
+          <PlaceRows
+            places={props.results.slice(0, 6)}
+            rtl={rtl}
+            onSelect={props.onSelect}
+          />
         ) : null}
         {showSearchState && props.results.length === 0 ? (
           <Text style={[styles.emptyText, rtl && styles.rtlText]}>
-            {props.searchError ? t("error.code.network_error") : t("empty.search")}
+            {props.searchError
+              ? t("error.code.network_error")
+              : t("empty.search")}
           </Text>
         ) : null}
-        {props.query.length === 0 && !props.selectedDestination && props.favorites.length > 0 ? (
+        {props.query.length === 0 &&
+        !props.selectedDestination &&
+        props.favorites.length > 0 ? (
           <PlaceSection
             title={t("favorites")}
             places={props.favorites}
@@ -176,7 +197,9 @@ export function SearchPanel(props: Props) {
             onSelect={props.onSelect}
           />
         ) : null}
-        {props.query.length === 0 && !props.selectedDestination && props.recent.length > 0 ? (
+        {props.query.length === 0 &&
+        !props.selectedDestination &&
+        props.recent.length > 0 ? (
           <PlaceSection
             title={t("recent")}
             places={props.recent}
@@ -188,58 +211,120 @@ export function SearchPanel(props: Props) {
         !props.selectedDestination &&
         props.recent.length === 0 &&
         props.favorites.length === 0 ? (
-          <Text style={[styles.emptyText, rtl && styles.rtlText]}>{t("empty.start")}</Text>
+          <Text style={[styles.emptyText, rtl && styles.rtlText]}>
+            {t("empty.start")}
+          </Text>
         ) : null}
 
         {props.selectedDestination && !editingDestination ? (
           <View style={styles.routeControls}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={favoriteSelected ? t("removeFavorite") : t("saveFavorite")}
+              accessibilityLabel={
+                favoriteSelected ? t("removeFavorite") : t("saveFavorite")
+              }
               style={[styles.favoriteButton, rtl && styles.rowReverse]}
               onPress={() => props.onToggleFavorite(props.selectedDestination!)}
             >
-              <Text style={styles.favoriteIcon}>{favoriteSelected ? "★" : "☆"}</Text>
+              <Text style={styles.favoriteIcon}>
+                {favoriteSelected ? "★" : "☆"}
+              </Text>
               <Text style={[styles.favoriteText, rtl && styles.rtlText]}>
                 {favoriteSelected ? t("favorites") : t("saveFavorite")}
               </Text>
             </Pressable>
 
-            <View style={[styles.primaryModeGrid, rtl && styles.rowReverse]}>
-              {PRIMARY_MODES.map((mode) => (
-                <ModeButton
-                  key={mode}
-                  mode={mode}
-                  label={t(`mode.${mode}`)}
-                  selected={props.mode === mode}
-                  onPress={() => props.onModeChange(mode)}
-                />
-              ))}
-            </View>
-            {showMoreModes ? (
-              <View style={[styles.moreModeGrid, rtl && styles.rowReverse]}>
-                {MORE_MODES.map((mode) => (
-                  <ModeButton
-                    key={mode}
-                    mode={mode}
-                    label={t(`mode.${mode}`)}
-                    selected={props.mode === mode}
-                    onPress={() => props.onModeChange(mode)}
-                    compact
-                  />
-                ))}
-              </View>
-            ) : null}
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setShowMoreModes((value) => !value)}
-              style={styles.moreButton}
-            >
-              <Text style={styles.moreButtonText}>
-                {showMoreModes ? t("fewerModes") : t("moreModes")}
+            <View style={[styles.transportHeader, rtl && styles.rowReverse]}>
+              <Text style={[styles.transportTitle, rtl && styles.rtlText]}>
+                {t("transportMode")}
               </Text>
-            </Pressable>
+              {modeSelectorExpanded ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={t("collapseModes")}
+                  onPress={() =>
+                    setCollapsedDestinationId(
+                      props.selectedDestination?.id ?? null,
+                    )
+                  }
+                  style={styles.transportHeaderButton}
+                >
+                  <Text style={styles.transportHeaderButtonText}>
+                    {t("collapse")}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
 
+            {modeSelectorExpanded ? (
+              <>
+                <View
+                  style={[styles.primaryModeGrid, rtl && styles.rowReverse]}
+                >
+                  {PRIMARY_MODES.map((mode) => (
+                    <ModeButton
+                      key={mode}
+                      mode={mode}
+                      label={t(`mode.${mode}`)}
+                      selected={props.mode === mode}
+                      onPress={() => {
+                        props.onModeChange(mode);
+                        setCollapsedDestinationId(
+                          props.selectedDestination?.id ?? null,
+                        );
+                      }}
+                    />
+                  ))}
+                </View>
+                {showMoreModes ? (
+                  <View style={[styles.moreModeGrid, rtl && styles.rowReverse]}>
+                    {MORE_MODES.map((mode) => (
+                      <ModeButton
+                        key={mode}
+                        mode={mode}
+                        label={t(`mode.${mode}`)}
+                        selected={props.mode === mode}
+                        onPress={() => {
+                          props.onModeChange(mode);
+                          setCollapsedDestinationId(
+                            props.selectedDestination?.id ?? null,
+                          );
+                        }}
+                        compact
+                      />
+                    ))}
+                  </View>
+                ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setShowMoreModes((value) => !value)}
+                  style={styles.moreButton}
+                >
+                  <Text style={styles.moreButtonText}>
+                    {showMoreModes ? t("fewerModes") : t("moreModes")}
+                  </Text>
+                </Pressable>
+              </>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("changeMode")}
+                onPress={() => setCollapsedDestinationId(null)}
+                style={[styles.selectedModeSummary, rtl && styles.rowReverse]}
+              >
+                <Text style={styles.selectedModeIcon}>
+                  {MODE_ICONS[props.mode]}
+                </Text>
+                <Text style={[styles.selectedModeLabel, rtl && styles.rtlText]}>
+                  {t(`mode.${props.mode}`)}
+                </Text>
+                <Text style={styles.changeModeText}>{t("change")}</Text>
+              </Pressable>
+            )}
+
+            <Text style={[styles.preferenceTitle, rtl && styles.rtlText]}>
+              {t("routePriority")}
+            </Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -263,10 +348,15 @@ export function SearchPanel(props: Props) {
             ) : null}
             <Pressable
               accessibilityRole="button"
-              style={({ pressed }) => [styles.planButton, pressed && styles.pressed]}
+              style={({ pressed }) => [
+                styles.planButton,
+                pressed && styles.pressed,
+              ]}
               onPress={props.planning ? props.onCancel : props.onPlan}
             >
-              {props.planning ? <ActivityIndicator color={colors.surface} /> : null}
+              {props.planning ? (
+                <ActivityIndicator color={colors.surface} />
+              ) : null}
               <Text style={styles.planButtonText}>
                 {props.planning ? t("cancel") : t("planRoute")}
               </Text>
@@ -318,13 +408,18 @@ function PlaceRows({
             onSelect(place);
           }}
         >
-          <View style={styles.resultIcon}><Text>⌖</Text></View>
+          <View style={styles.resultIcon}>
+            <Text>⌖</Text>
+          </View>
           <View style={styles.resultText}>
             <Text style={[styles.resultName, rtl && styles.rtlText]}>
               {rtl ? (place.name_he ?? place.name) : place.name}
             </Text>
             {place.subtitle ? (
-              <Text style={[styles.resultSubtitle, rtl && styles.rtlText]} numberOfLines={1}>
+              <Text
+                style={[styles.resultSubtitle, rtl && styles.rtlText]}
+                numberOfLines={1}
+              >
                 {place.subtitle}
               </Text>
             ) : null}
@@ -351,19 +446,38 @@ function ModeButton({
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={label}
       accessibilityState={{ selected }}
       onPress={onPress}
-      style={[styles.modeButton, compact && styles.modeButtonCompact, selected && styles.modeSelected]}
+      style={[
+        styles.modeButton,
+        compact && styles.modeButtonCompact,
+        selected && styles.modeSelected,
+      ]}
     >
       <Text style={styles.modeIcon}>{MODE_ICONS[mode]}</Text>
-      <Text style={[styles.modeLabel, selected && styles.modeLabelSelected]} numberOfLines={1}>
+      <Text
+        style={[
+          styles.modeLabel,
+          compact && styles.modeLabelCompact,
+          selected && styles.modeLabelSelected,
+        ]}
+      >
         {label}
       </Text>
     </Pressable>
   );
 }
 
-function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
+function Chip({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
   return (
     <Pressable
       accessibilityRole="button"
@@ -371,7 +485,9 @@ function Chip({ label, selected, onPress }: { label: string; selected: boolean; 
       onPress={onPress}
       style={[styles.chip, selected && styles.chipSelected]}
     >
-      <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{label}</Text>
+      <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -403,13 +519,21 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     marginBottom: spacing.sm,
   },
-  brandRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  brandRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
   rowReverse: { flexDirection: "row-reverse" },
   brandCopy: { flex: 1 },
   brand: { fontSize: 24, lineHeight: 28, fontWeight: "900", color: colors.ink },
   tagline: { fontSize: 12, color: colors.muted, marginTop: 1 },
   rtlText: { textAlign: "right", writingDirection: "rtl" },
-  languageButton: { minHeight: 44, paddingHorizontal: spacing.md, justifyContent: "center" },
+  languageButton: {
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+    justifyContent: "center",
+  },
   languageText: { color: colors.primary, fontWeight: "800" },
   searchBox: {
     minHeight: 54,
@@ -422,15 +546,43 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  searchIcon: { fontSize: 24, color: colors.primary, marginHorizontal: spacing.xs },
-  input: { flex: 1, minHeight: 50, fontSize: 17, color: colors.ink, paddingHorizontal: spacing.sm },
-  inlineButton: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  searchIcon: {
+    fontSize: 24,
+    color: colors.primary,
+    marginHorizontal: spacing.xs,
+  },
+  input: {
+    flex: 1,
+    minHeight: 50,
+    fontSize: 17,
+    color: colors.ink,
+    paddingHorizontal: spacing.sm,
+  },
+  inlineButton: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   clearIcon: { fontSize: 24, color: colors.muted },
   locationIcon: { fontSize: 25, color: colors.primary, fontWeight: "800" },
   scrollArea: { flexGrow: 0 },
-  results: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
-  sectionTitle: { color: colors.muted, fontSize: 12, fontWeight: "800", marginTop: spacing.md },
-  result: { flexDirection: "row", alignItems: "center", minHeight: 60, paddingVertical: spacing.sm },
+  results: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  sectionTitle: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: spacing.md,
+  },
+  result: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 60,
+    paddingVertical: spacing.sm,
+  },
   resultIcon: {
     width: 38,
     height: 38,
@@ -443,13 +595,49 @@ const styles = StyleSheet.create({
   resultText: { flex: 1, minWidth: 0 },
   resultName: { color: colors.ink, fontSize: 15, fontWeight: "800" },
   resultSubtitle: { color: colors.muted, fontSize: 12, marginTop: 2 },
-  emptyText: { color: colors.muted, fontSize: 13, lineHeight: 19, paddingVertical: spacing.lg },
+  emptyText: {
+    color: colors.muted,
+    fontSize: 13,
+    lineHeight: 19,
+    paddingVertical: spacing.lg,
+  },
   routeControls: { paddingTop: spacing.sm },
-  favoriteButton: { minHeight: 44, flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  favoriteButton: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
   favoriteIcon: { color: colors.primary, fontSize: 22 },
   favoriteText: { color: colors.primaryDark, fontWeight: "700" },
-  primaryModeGrid: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.xs },
-  moreModeGrid: { flexDirection: "row", gap: spacing.sm, flexWrap: "wrap", marginTop: spacing.sm },
+  transportHeader: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  transportTitle: { color: colors.ink, fontSize: 14, fontWeight: "900" },
+  transportHeaderButton: {
+    minHeight: 44,
+    paddingHorizontal: spacing.sm,
+    justifyContent: "center",
+  },
+  transportHeaderButtonText: {
+    color: colors.primary,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  primaryModeGrid: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  moreModeGrid: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    flexWrap: "wrap",
+    marginTop: spacing.sm,
+  },
   modeButton: {
     flex: 1,
     minWidth: 68,
@@ -462,13 +650,47 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: spacing.xs,
   },
-  modeButtonCompact: { flexGrow: 0, width: "31%" },
+  modeButtonCompact: { flexGrow: 0, width: "48%", minHeight: 76 },
   modeSelected: { backgroundColor: "#EEF2FF", borderColor: colors.primary },
   modeIcon: { fontSize: 20 },
-  modeLabel: { color: colors.ink, fontSize: 11, fontWeight: "700", marginTop: 2 },
+  modeLabel: {
+    color: colors.ink,
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: "700",
+    marginTop: 2,
+    textAlign: "center",
+    flexShrink: 1,
+  },
+  modeLabelCompact: { minHeight: 30, textAlignVertical: "center" },
   modeLabelSelected: { color: colors.primaryDark },
+  selectedModeSummary: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: "#EEF2FF",
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  selectedModeIcon: { fontSize: 22 },
+  selectedModeLabel: {
+    flex: 1,
+    color: colors.primaryDark,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  changeModeText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
   moreButton: { minHeight: 44, justifyContent: "center", alignItems: "center" },
   moreButtonText: { color: colors.primary, fontSize: 13, fontWeight: "800" },
+  preferenceTitle: {
+    color: colors.muted,
+    fontSize: 12,
+    fontWeight: "800",
+    marginBottom: spacing.sm,
+  },
   chipRow: { gap: spacing.sm, paddingBottom: spacing.sm },
   chip: {
     minHeight: 44,

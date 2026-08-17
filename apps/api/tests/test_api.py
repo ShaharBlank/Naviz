@@ -38,6 +38,27 @@ def test_invalid_request_uses_problem_details() -> None:
         assert response.json()["code"] == "validation_error"
 
 
+def test_road_route_exposes_a_total_traffic_light_count() -> None:
+    with TestClient(app) as client:
+        response = client.post(
+            "/v1/routes/plan",
+            json={
+                "origin": {"latitude": 32.0733, "longitude": 34.7799},
+                "destination": {"latitude": 32.0832, "longitude": 34.7957},
+                "depart_at": "2026-08-02T09:00:00+03:00",
+                "mode": "car",
+                "preference": "fastest",
+                "include_comparisons": True,
+            },
+        )
+
+        assert response.status_code == 200, response.text
+        routes = response.json()["routes"]
+        assert routes[0]["label_key"] == "route.fastest"
+        assert isinstance(routes[0]["metrics"]["traffic_signals"], int)
+        assert routes[0]["metrics"]["traffic_signals"] >= 0
+
+
 def test_demo_account_sync_requires_explicit_token() -> None:
     with TestClient(app) as client:
         assert client.get("/v1/me/favorites").status_code == 401

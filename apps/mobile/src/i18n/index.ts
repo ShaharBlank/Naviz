@@ -21,6 +21,15 @@ const resources = {
       retry: "ניסיון חוזר",
       cancel: "ביטול",
       clear: "ניקוי",
+      collapse: "צמצום",
+      change: "שינוי",
+      transportMode: "אמצעי תחבורה",
+      collapseModes: "צמצום בחירת אמצעי התחבורה",
+      changeMode: "שינוי אמצעי התחבורה",
+      routePriority: "מה להעדיף? כל סוגי המסלולים יוצגו להשוואה",
+      routeComparison: "השוואת מסלולים",
+      routeComparisonHint:
+        "בחרו מסלול להשוואה על המפה. הנתונים מוצגים לאותו זמן יציאה.",
       moreModes: "אפשרויות נוספות",
       fewerModes: "פחות אפשרויות",
       overview: "כל המסלול",
@@ -33,6 +42,8 @@ const resources = {
         maximumShade: "מקסימום צל",
         fewerLights: "פחות רמזורים",
         saferStreets: "רחובות בטוחים",
+        fewerTransfers: "פחות החלפות",
+        fastestFewestTransfers: "הכי מהיר · הכי מעט החלפות",
         transitRecommended: "מומלץ",
         alternative: "חלופה",
       },
@@ -70,18 +81,28 @@ const resources = {
         foldBeforeBoarding: "יש לקפל ולשאת את הכלי לפני העלייה",
         arrival: "הגעה ב־{{value}}",
       },
-      confidence: { high: "דיוק גבוה", medium: "דיוק בינוני", low: "דיוק מוגבל", unknown: "דיוק לא ידוע" },
+      confidence: {
+        high: "דיוק גבוה",
+        medium: "דיוק בינוני",
+        low: "דיוק מוגבל",
+        unknown: "דיוק לא ידוע",
+      },
       fallback: {
         least_exposed_route: "החשיפה הנמוכה ביותר לשמש במסגרת מגבלת העיקוף.",
-        no_material_signal_reduction: "המסלול המהיר נבחר; החלופות לא חסכו מספיק רמזורים.",
-        shade_data_temporarily_unavailable: "לא ניתן היה לרענן את פרטי הצל; המסלול המהיר נבחר.",
-        signal_data_temporarily_unavailable: "לא ניתן היה לרענן את ספירת הרמזורים; המסלול המהיר נבחר.",
-        rental_availability_unavailable: "כלים שיתופיים זמינים בקרבת מקום, אך המסלול הזה משתמש כרגע בתחבורה ציבורית בלבד.",
+        no_material_signal_reduction:
+          "המסלול המהיר נבחר; החלופות לא חסכו מספיק רמזורים.",
+        shade_data_temporarily_unavailable:
+          "לא ניתן היה לרענן את פרטי הצל; המסלול המהיר נבחר.",
+        signal_data_temporarily_unavailable:
+          "לא ניתן היה לרענן את ספירת הרמזורים; המסלול המהיר נבחר.",
+        rental_availability_unavailable:
+          "כלים שיתופיים זמינים בקרבת מקום, אך המסלול הזה משתמש כרגע בתחבורה ציבורית בלבד.",
       },
       mobility: {
         title: "כלי שיתופי",
         loading: "טוען זמינות חיה של כלים שיתופיים…",
-        available: "{{count}} כלים זמינים בקרבתך · הקישו על נקודה במפה לפתיחת אפליקציית המפעיל",
+        available:
+          "{{count}} כלים זמינים בקרבתך · הקישו על נקודה במפה לפתיחת אפליקציית המפעיל",
         noDeepLink: "פתחו את אפליקציית המפעיל כדי לשכור את הכלי.",
         openError: "לא ניתן לפתוח את אפליקציית המפעיל במכשיר הזה.",
       },
@@ -92,7 +113,8 @@ const resources = {
         recalculating: "מחשב מסלול מחדש…",
         offline: "אין חיבור. ממשיכים עם המסלול השמור; חישוב מחדש דורש חיבור.",
         arrived: "הגעת ליעד",
-        keepOpen: "הניווט פעיל. כדי לקבל הנחיות כשהמסך כבוי, יש לאפשר מיקום ברקע.",
+        keepOpen:
+          "הניווט פעיל. כדי לקבל הנחיות כשהמסך כבוי, יש לאפשר מיקום ברקע.",
       },
       navigation: {
         literal: "{{modifier}} {{street}}",
@@ -121,11 +143,14 @@ const resources = {
         generic: "משהו השתבש. אפשר לנסות שוב.",
         noDestination: "בחרו יעד תחילה.",
         permission: "יש לאפשר גישה למיקום כדי לנווט מהמיקום הנוכחי.",
-        locationUnavailable: "לא הצלחנו לקבוע את המיקום. ודאו ששירותי המיקום פעילים ונסו שוב.",
+        locationUnavailable:
+          "לא הצלחנו לקבוע את המיקום. ודאו ששירותי המיקום פעילים ונסו שוב.",
         outsideCoverage: "Naviz פועל כרגע במטרופולין תל אביב והסביבה.",
         code: {
-          outside_coverage: "הנקודה נמצאת מחוץ לאזור הכיסוי של מטרופולין תל אביב.",
-          routing_unavailable: "שירות חישוב המסלול אינו זמין כרגע. נסו שוב בעוד רגע.",
+          outside_coverage:
+            "הנקודה נמצאת מחוץ לאזור הכיסוי של מטרופולין תל אביב.",
+          routing_unavailable:
+            "שירות חישוב המסלול אינו זמין כרגע. נסו שוב בעוד רגע.",
           no_route: "לא נמצא מסלול מתאים למצב ולהעדפות שנבחרו.",
           network_error: "אין חיבור לשרת. בדקו את החיבור ונסו שוב.",
           validation_error: "פרטי המסלול אינם תקינים.",
@@ -151,6 +176,16 @@ const resources = {
       retry: "Try again",
       cancel: "Cancel",
       clear: "Clear",
+      collapse: "Collapse",
+      change: "Change",
+      transportMode: "Travel mode",
+      collapseModes: "Collapse travel-mode choices",
+      changeMode: "Change travel mode",
+      routePriority:
+        "Prioritize a route type; all calculated types will be shown",
+      routeComparison: "Compare routes",
+      routeComparisonHint:
+        "Select a route to compare it on the map. Metrics use the same departure time.",
       moreModes: "More travel modes",
       fewerModes: "Fewer travel modes",
       overview: "Overview",
@@ -163,6 +198,8 @@ const resources = {
         maximumShade: "Maximum shade",
         fewerLights: "Fewer lights",
         saferStreets: "Safer streets",
+        fewerTransfers: "Fewer transfers",
+        fastestFewestTransfers: "Fastest · fewest transfers",
         transitRecommended: "Recommended",
         alternative: "Alternative",
       },
@@ -200,18 +237,28 @@ const resources = {
         foldBeforeBoarding: "Fold and carry before boarding",
         arrival: "Arrive at {{value}}",
       },
-      confidence: { high: "High confidence", medium: "Medium confidence", low: "Limited confidence", unknown: "Unknown confidence" },
+      confidence: {
+        high: "High confidence",
+        medium: "Medium confidence",
+        low: "Limited confidence",
+        unknown: "Unknown confidence",
+      },
       fallback: {
         least_exposed_route: "Lowest sun exposure within your detour limit.",
-        no_material_signal_reduction: "Fastest route selected; alternatives did not avoid enough lights.",
-        shade_data_temporarily_unavailable: "Shade details could not be refreshed; fastest route selected.",
-        signal_data_temporarily_unavailable: "Traffic-light counts could not be refreshed; fastest route selected.",
-        rental_availability_unavailable: "Shared vehicles are nearby, but this route currently uses public transit only.",
+        no_material_signal_reduction:
+          "Fastest route selected; alternatives did not avoid enough lights.",
+        shade_data_temporarily_unavailable:
+          "Shade details could not be refreshed; fastest route selected.",
+        signal_data_temporarily_unavailable:
+          "Traffic-light counts could not be refreshed; fastest route selected.",
+        rental_availability_unavailable:
+          "Shared vehicles are nearby, but this route currently uses public transit only.",
       },
       mobility: {
         title: "Shared vehicle",
         loading: "Loading live shared vehicles…",
-        available: "{{count}} vehicles nearby · tap a map dot to open the operator app",
+        available:
+          "{{count}} vehicles nearby · tap a map dot to open the operator app",
         noDeepLink: "Open the operator app to rent this vehicle.",
         openError: "The operator app could not be opened on this device.",
       },
@@ -220,9 +267,11 @@ const resources = {
         planning: "Calculating routes…",
         warming: "Starting the routing engine…",
         recalculating: "Recalculating…",
-        offline: "Offline. Continuing on the saved route; rerouting requires a connection.",
+        offline:
+          "Offline. Continuing on the saved route; rerouting requires a connection.",
         arrived: "You have arrived",
-        keepOpen: "Navigation is active. Allow background location for guidance with the screen off.",
+        keepOpen:
+          "Navigation is active. Allow background location for guidance with the screen off.",
       },
       navigation: {
         literal: "{{modifier}} {{street}}",
@@ -243,21 +292,28 @@ const resources = {
         map: "Naviz map",
       },
       empty: {
-        search: "No results in the coverage area. Try another address or place name.",
+        search:
+          "No results in the coverage area. Try another address or place name.",
         start: "Search for a destination or choose a recent place.",
       },
       error: {
         title: "We couldn't complete that",
         generic: "Something went wrong. You can try again.",
         noDestination: "Choose a destination first.",
-        permission: "Allow location access to navigate from your current position.",
-        locationUnavailable: "We couldn't determine your location. Check Location Services and try again.",
-        outsideCoverage: "Naviz currently covers metropolitan Tel Aviv and nearby cities.",
+        permission:
+          "Allow location access to navigate from your current position.",
+        locationUnavailable:
+          "We couldn't determine your location. Check Location Services and try again.",
+        outsideCoverage:
+          "Naviz currently covers metropolitan Tel Aviv and nearby cities.",
         code: {
-          outside_coverage: "That point is outside the metropolitan Tel Aviv coverage area.",
-          routing_unavailable: "Routing is temporarily unavailable. Please try again shortly.",
+          outside_coverage:
+            "That point is outside the metropolitan Tel Aviv coverage area.",
+          routing_unavailable:
+            "Routing is temporarily unavailable. Please try again shortly.",
           no_route: "No route was found for the selected mode and preferences.",
-          network_error: "The server cannot be reached. Check your connection and try again.",
+          network_error:
+            "The server cannot be reached. Check your connection and try again.",
           validation_error: "The route details are invalid.",
         },
       },
@@ -266,7 +322,8 @@ const resources = {
   },
 } as const;
 
-const deviceLanguage = Localization.getLocales()[0]?.languageCode === "en" ? "en" : "he";
+const deviceLanguage =
+  Localization.getLocales()[0]?.languageCode === "en" ? "en" : "he";
 I18nManager.allowRTL(true);
 
 // i18next's default singleton intentionally exposes the fluent `.use()` API.

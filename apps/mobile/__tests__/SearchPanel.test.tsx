@@ -77,7 +77,9 @@ describe("SearchPanel localization and controls", () => {
     );
 
     expect(
-      screen.getByText("12 vehicles nearby · tap a map dot to open the operator app"),
+      screen.getByText(
+        "12 vehicles nearby · tap a map dot to open the operator app",
+      ),
     ).toBeTruthy();
   });
 
@@ -91,5 +93,37 @@ describe("SearchPanel localization and controls", () => {
     expect(i18n.t("fallback.rental_availability_unavailable")).toBe(
       "כלים שיתופיים זמינים בקרבת מקום, אך המסלול הזה משתמש כרגע בתחבורה ציבורית בלבד.",
     );
+  });
+
+  it("wraps combined-mode names and collapses after a mode is selected", async () => {
+    await i18n.changeLanguage("en");
+    const screen = render(
+      <SearchPanel
+        {...defaults}
+        locale="en"
+        query="Rabin Square"
+        selectedDestination={rabin}
+      />,
+    );
+
+    fireEvent.press(screen.getByText("More travel modes"));
+    const combinedMode = screen.getByText("Bike + transit");
+    expect(combinedMode.props.numberOfLines).toBeUndefined();
+    fireEvent.press(combinedMode);
+    expect(defaults.onModeChange).toHaveBeenLastCalledWith("bike_transit");
+
+    screen.rerender(
+      <SearchPanel
+        {...defaults}
+        locale="en"
+        query="Rabin Square"
+        selectedDestination={rabin}
+        mode="bike_transit"
+        preference="fewer_transfers"
+      />,
+    );
+    expect(screen.getByLabelText("Change travel mode")).toBeTruthy();
+    expect(screen.getByText("Bike + transit")).toBeTruthy();
+    expect(screen.queryByText("More travel modes")).toBeNull();
   });
 });

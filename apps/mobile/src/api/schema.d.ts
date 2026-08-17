@@ -559,6 +559,11 @@ export interface components {
             /** Depart At */
             depart_at?: string | null;
             destination: components["schemas"]["Coordinate"];
+            /**
+             * Include Comparisons
+             * @default true
+             */
+            include_comparisons: boolean;
             /** @default he */
             locale: components["schemas"]["Locale"];
             /** @default walk */

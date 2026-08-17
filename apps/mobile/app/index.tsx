@@ -17,11 +17,18 @@ import {
   searchPlaces,
 } from "../src/api/client";
 import { decodePolyline } from "../src/api/polyline";
-import type { Coordinate, MobilityVehicle, RoutePlanRequest } from "../src/api/types";
+import type {
+  Coordinate,
+  MobilityVehicle,
+  RoutePlanRequest,
+} from "../src/api/types";
 import { NavigationHud } from "../src/components/NavigationHud";
 import { NavizMap } from "../src/components/NavizMap";
 import { RouteCards } from "../src/components/RouteCards";
-import { SearchPanel, type LocationStatus } from "../src/components/SearchPanel";
+import {
+  SearchPanel,
+  type LocationStatus,
+} from "../src/components/SearchPanel";
 import { StatusBanner } from "../src/components/StatusBanner";
 import {
   requestBackgroundNavigationPermission,
@@ -53,7 +60,9 @@ export default function HomeScreen() {
   const [following, setFollowing] = useState(false);
   const [muted, setMuted] = useState(false);
   const [backgroundEnabled, setBackgroundEnabled] = useState(true);
-  const [remainingDistanceM, setRemainingDistanceM] = useState<number | null>(null);
+  const [remainingDistanceM, setRemainingDistanceM] = useState<number | null>(
+    null,
+  );
   const [progressFraction, setProgressFraction] = useState(0);
   const [offlineContinuation, setOfflineContinuation] = useState(false);
   const tracker = useRef<ProgressTracker | null>(null);
@@ -82,39 +91,55 @@ export default function HomeScreen() {
     return () => clearTimeout(timer);
   }, [query]);
 
-  const locateUser = useCallback(async (requestPermission: boolean): Promise<Coordinate | null> => {
-    setLocationStatus("locating");
-    try {
-      let permission = await Location.getForegroundPermissionsAsync();
-      if (permission.status !== "granted" && requestPermission) {
-        permission = await Location.requestForegroundPermissionsAsync();
-      }
-      if (permission.status !== "granted") {
-        setLocationStatus(requestPermission ? "denied" : "idle");
-        return null;
-      }
-      const lastKnown = await Location.getLastKnownPositionAsync({
-        maxAge: 60_000,
-        requiredAccuracy: 200,
-      });
-      if (lastKnown) updateLocation(lastKnown, setOrigin, setUserCoordinate, setLocationStatus);
+  const locateUser = useCallback(
+    async (requestPermission: boolean): Promise<Coordinate | null> => {
+      setLocationStatus("locating");
       try {
-        const current = await withTimeout(
-          Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }),
-          12_000,
-        );
-        updateLocation(current, setOrigin, setUserCoordinate, setLocationStatus);
-        return toCoordinate(current);
+        let permission = await Location.getForegroundPermissionsAsync();
+        if (permission.status !== "granted" && requestPermission) {
+          permission = await Location.requestForegroundPermissionsAsync();
+        }
+        if (permission.status !== "granted") {
+          setLocationStatus(requestPermission ? "denied" : "idle");
+          return null;
+        }
+        const lastKnown = await Location.getLastKnownPositionAsync({
+          maxAge: 60_000,
+          requiredAccuracy: 200,
+        });
+        if (lastKnown)
+          updateLocation(
+            lastKnown,
+            setOrigin,
+            setUserCoordinate,
+            setLocationStatus,
+          );
+        try {
+          const current = await withTimeout(
+            Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.High,
+            }),
+            12_000,
+          );
+          updateLocation(
+            current,
+            setOrigin,
+            setUserCoordinate,
+            setLocationStatus,
+          );
+          return toCoordinate(current);
+        } catch {
+          if (lastKnown) return toCoordinate(lastKnown);
+          setLocationStatus("unavailable");
+          return null;
+        }
       } catch {
-        if (lastKnown) return toCoordinate(lastKnown);
         setLocationStatus("unavailable");
         return null;
       }
-    } catch {
-      setLocationStatus("unavailable");
-      return null;
-    }
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -125,7 +150,12 @@ export default function HomeScreen() {
         requiredAccuracy: 200,
       });
       if (!cancelled && lastKnown) {
-        updateLocation(lastKnown, setOrigin, setUserCoordinate, setLocationStatus);
+        updateLocation(
+          lastKnown,
+          setOrigin,
+          setUserCoordinate,
+          setLocationStatus,
+        );
       }
     });
     return () => {
@@ -158,7 +188,13 @@ export default function HomeScreen() {
   }, [locale, send]);
 
   const search = useQuery({
-    queryKey: ["places", debouncedQuery, locale, origin?.latitude, origin?.longitude],
+    queryKey: [
+      "places",
+      debouncedQuery,
+      locale,
+      origin?.latitude,
+      origin?.longitude,
+    ],
     queryFn: () => searchPlaces(debouncedQuery, locale, origin ?? undefined),
     enabled: debouncedQuery.length > 0 && state.matches("idle"),
     retry: 1,
@@ -201,9 +237,11 @@ export default function HomeScreen() {
       locale,
       mode,
       preference,
+      include_comparisons: true,
       vehicle: {
         kind: vehicleKind,
-        can_fold: vehicleKind === "folding_bike" || vehicleKind === "personal_scooter",
+        can_fold:
+          vehicleKind === "folding_bike" || vehicleKind === "personal_scooter",
       },
       accessibility: {
         avoid_stairs: false,
@@ -240,35 +278,57 @@ export default function HomeScreen() {
       setOfflineContinuation(false);
     },
     onError: (error) => {
-      send({ type: "FAIL", message: readableError(error, (key) => String(t(key))) });
+      send({
+        type: "FAIL",
+        message: readableError(error, (key) => String(t(key))),
+      });
     },
   });
 
   const selectedRoute = useMemo(
     () =>
-      state.context.routes.find((route) => route.id === state.context.selectedRouteId) ??
+      state.context.routes.find(
+        (route) => route.id === state.context.selectedRouteId,
+      ) ??
       state.context.routes[0] ??
       null,
     [state.context.routes, state.context.selectedRouteId],
   );
 
   const rerouteMutation = useMutation({
-    mutationFn: async ({ coordinate, location }: { coordinate: Coordinate; location: Location.LocationObject }) => {
-      if (!selectedRoute || !state.context.destination) throw new Error("No active route");
+    mutationFn: async ({
+      coordinate,
+      location,
+    }: {
+      coordinate: Coordinate;
+      location: Location.LocationObject;
+    }) => {
+      if (!selectedRoute || !state.context.destination)
+        throw new Error("No active route");
       const request = buildRequest(coordinate);
-      const { origin: _origin, ...remaining } = request;
+      const {
+        origin: _origin,
+        include_comparisons: _includeComparisons,
+        ...remaining
+      } = request;
       return reroute({
         ...remaining,
         current_position: coordinate,
         original_route_id: selectedRoute.id,
-        ...(location.coords.heading !== null ? { heading_degrees: location.coords.heading } : {}),
-        ...(location.coords.accuracy !== null ? { accuracy_m: location.coords.accuracy } : {}),
+        ...(location.coords.heading !== null
+          ? { heading_degrees: location.coords.heading }
+          : {}),
+        ...(location.coords.accuracy !== null
+          ? { accuracy_m: location.coords.accuracy }
+          : {}),
       });
     },
     onSuccess: (response) => {
       const route = response.routes[0];
       if (route) {
-        tracker.current = new ProgressTracker(decodePolyline(route.encoded_polyline));
+        tracker.current = new ProgressTracker(
+          decodePolyline(route.encoded_polyline),
+        );
         setRemainingDistanceM(route.metrics.distance_m);
         setProgressFraction(0);
         void cacheRoute(route);
@@ -332,20 +392,28 @@ export default function HomeScreen() {
             locale === "en",
           );
           if (message && !muted) {
-            Speech.speak(message, { language: locale === "he" ? "he-IL" : "en-US" });
+            Speech.speak(message, {
+              language: locale === "he" ? "he-IL" : "en-US",
+            });
           }
           void Haptics.selectionAsync();
         }
         if (progress.arrived) {
           send({ type: "ARRIVE" });
-          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          void Haptics.notificationAsync(
+            Haptics.NotificationFeedbackType.Success,
+          );
           if (!muted) {
             Speech.speak(t("status.arrived"), {
               language: locale === "he" ? "he-IL" : "en-US",
             });
           }
           void stopBackgroundNavigation();
-        } else if (progress.offRoute && !rerouting.current && Date.now() >= rerouteAfter.current) {
+        } else if (
+          progress.offRoute &&
+          !rerouting.current &&
+          Date.now() >= rerouteAfter.current
+        ) {
           rerouting.current = true;
           send({ type: "OFF_ROUTE" });
           mutateReroute({ coordinate, location });
@@ -361,7 +429,17 @@ export default function HomeScreen() {
       cancelled = true;
       subscription?.remove();
     };
-  }, [locale, muted, mutateReroute, navigating, offline, recalculating, selectedRoute, send, t]);
+  }, [
+    locale,
+    muted,
+    mutateReroute,
+    navigating,
+    offline,
+    recalculating,
+    selectedRoute,
+    send,
+    t,
+  ]);
 
   const plan = async () => {
     if (!state.context.destination) {
@@ -411,7 +489,8 @@ export default function HomeScreen() {
     let backgroundGranted = false;
     try {
       backgroundGranted = await requestBackgroundNavigationPermission();
-      if (backgroundGranted) backgroundGranted = await startBackgroundNavigation();
+      if (backgroundGranted)
+        backgroundGranted = await startBackgroundNavigation();
     } catch {
       backgroundGranted = false;
     }
@@ -445,7 +524,8 @@ export default function HomeScreen() {
   };
 
   const planning = state.matches("planning");
-  const active = navigating || recalculating || offline || state.matches("arrived");
+  const active =
+    navigating || recalculating || offline || state.matches("arrived");
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
@@ -453,11 +533,15 @@ export default function HomeScreen() {
         <NavizMap
           route={selectedRoute}
           userCoordinate={userCoordinate}
-          mobilityVehicles={mode === "rental_transit" ? (mobility.data?.vehicles ?? []) : []}
+          mobilityVehicles={
+            mode === "rental_transit" ? (mobility.data?.vehicles ?? []) : []
+          }
           following={following}
           onRecenter={() => void centerOnUser()}
           onOverview={() => setFollowing(false)}
-          onMobilityVehiclePress={(vehicle) => void openMobilityVehicle(vehicle)}
+          onMobilityVehiclePress={(vehicle) =>
+            void openMobilityVehicle(vehicle)
+          }
         />
         {state.matches("idle") || planning || state.matches("error") ? (
           <SearchPanel
@@ -470,7 +554,11 @@ export default function HomeScreen() {
             selectedDestination={state.context.destination}
             onSelect={(destination) => {
               send({ type: "DESTINATION_SELECTED", destination });
-              setQuery(rtl ? (destination.name_he ?? destination.name) : destination.name);
+              setQuery(
+                rtl
+                  ? (destination.name_he ?? destination.name)
+                  : destination.name,
+              );
               addRecent(destination);
             }}
             mode={mode}
@@ -494,11 +582,14 @@ export default function HomeScreen() {
             }
           />
         ) : null}
-        {(state.matches("preview") || state.matches("permissionDenied")) && selectedRoute ? (
+        {(state.matches("preview") || state.matches("permissionDenied")) &&
+        selectedRoute ? (
           <RouteCards
             routes={state.context.routes}
             selectedRouteId={state.context.selectedRouteId}
-            onSelect={(route) => send({ type: "SELECT_ROUTE", routeId: route.id })}
+            onSelect={(route) =>
+              send({ type: "SELECT_ROUTE", routeId: route.id })
+            }
             onStart={() => void start()}
             onBack={resetPreview}
             rtl={rtl}
@@ -523,13 +614,25 @@ export default function HomeScreen() {
           />
         ) : null}
         {state.context.engineWarming ? (
-          <StatusBanner message={t("status.warming")} tone="warning" rtl={rtl} />
+          <StatusBanner
+            message={t("status.warming")}
+            tone="warning"
+            rtl={rtl}
+          />
         ) : null}
         {offlineContinuation ? (
-          <StatusBanner message={t("status.offline")} tone="warning" rtl={rtl} />
+          <StatusBanner
+            message={t("status.offline")}
+            tone="warning"
+            rtl={rtl}
+          />
         ) : null}
         {active && !backgroundEnabled && !offlineContinuation ? (
-          <StatusBanner message={t("status.keepOpen")} tone="warning" rtl={rtl} />
+          <StatusBanner
+            message={t("status.keepOpen")}
+            tone="warning"
+            rtl={rtl}
+          />
         ) : null}
         {state.matches("permissionDenied") ? (
           <StatusBanner
@@ -554,7 +657,10 @@ export default function HomeScreen() {
   );
 }
 
-function readableError(error: unknown, translate: (key: string) => string): string {
+function readableError(
+  error: unknown,
+  translate: (key: string) => string,
+): string {
   if (error instanceof ApiError) {
     const key = `error.code.${error.code}`;
     const translated = translate(key);
@@ -564,7 +670,10 @@ function readableError(error: unknown, translate: (key: string) => string): stri
 }
 
 function toCoordinate(location: Location.LocationObject): Coordinate {
-  return { latitude: location.coords.latitude, longitude: location.coords.longitude };
+  return {
+    latitude: location.coords.latitude,
+    longitude: location.coords.longitude,
+  };
 }
 
 function updateLocation(
@@ -588,13 +697,19 @@ function insideMetroCoverage(coordinate: Coordinate): boolean {
   );
 }
 
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
+async function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number,
+): Promise<T> {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
       promise,
       new Promise<T>((_, reject) => {
-        timeout = setTimeout(() => reject(new Error("Location timeout")), timeoutMs);
+        timeout = setTimeout(
+          () => reject(new Error("Location timeout")),
+          timeoutMs,
+        );
       }),
     ]);
   } finally {

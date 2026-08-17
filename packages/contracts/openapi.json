@@ -973,6 +973,11 @@
           "destination": {
             "$ref": "#/components/schemas/Coordinate"
           },
+          "include_comparisons": {
+            "default": true,
+            "title": "Include Comparisons",
+            "type": "boolean"
+          },
           "locale": {
             "$ref": "#/components/schemas/Locale",
             "default": "he"

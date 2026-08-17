@@ -25,6 +25,7 @@ from .models import (
     TransitDetails,
     TravelMode,
 )
+from .route_comparison import transit_comparison_routes
 from .route_features import RouteFeatureAnalyzer
 from .routing import TEL_AVIV_TZ
 
@@ -101,6 +102,8 @@ class LiveRoutePlanner:
             self._to_alternative(request, itinerary, index, fastest_duration)
             for index, itinerary in enumerate(itineraries)
         ]
+        if request.mode in _TRANSIT_MODES and request.include_comparisons:
+            return transit_comparison_routes(result, request.preference)
         if request.preference == RoutePreference.FEWER_TRANSFERS:
             result.sort(key=lambda route: (route.metrics.transfers, route.metrics.duration_s))
         else:

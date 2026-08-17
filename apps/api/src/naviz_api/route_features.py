@@ -281,10 +281,16 @@ class RouteFeatureAnalyzer:
         context: OsmRouteContext,
     ) -> list[RouteAlternative]:
         if not context.complete:
-            if request.preference != RoutePreference.FASTEST:
-                routes[0] = routes[0].model_copy(
-                    update={"fallback_reason": "shade_data_temporarily_unavailable"}
-                )
+            if request.include_comparisons or request.preference != RoutePreference.FASTEST:
+                fastest = min(routes, key=lambda route: route.metrics.duration_s)
+                return [
+                    fastest.model_copy(
+                        update={
+                            "label_key": "route.fastest",
+                            "fallback_reason": "shade_data_temporarily_unavailable",
+                        }
+                    )
+                ]
             return routes
         departure = routes[0].departure_at
         center = decode_polyline(routes[0].encoded_polyline)[0]
@@ -294,9 +300,35 @@ class RouteFeatureAnalyzer:
             center,
         )
         enriched = [_annotate_shade(route, shadows, high_shadows, sun_up) for route in routes]
+        fastest = min(enriched, key=lambda route: route.metrics.duration_s)
+        if request.include_comparisons:
+            balanced = self._best_shade_route(request, enriched, fastest, 15.0).model_copy(
+                update={"label_key": "route.balancedShade"}
+            )
+            maximum = self._best_shade_route(request, enriched, fastest, 30.0).model_copy(
+                update={"label_key": "route.maximumShade"}
+            )
+            fastest = fastest.model_copy(update={"label_key": "route.fastest"})
+            preference_label = {
+                RoutePreference.BALANCED_SHADE: "route.balancedShade",
+                RoutePreference.MAXIMUM_SHADE: "route.maximumShade",
+            }.get(request.preference, "route.fastest")
+            comparison = [fastest, balanced, maximum]
+            comparison = [
+                route
+                for _, route in sorted(
+                    enumerate(comparison),
+                    key=lambda item: (item[1].label_key != preference_label, item[0]),
+                )
+            ]
+            comparison = _deduplicate_route_geometry(comparison)
+            if len(comparison) == 1:
+                comparison[0] = comparison[0].model_copy(
+                    update={"fallback_reason": "least_exposed_route"}
+                )
+            return comparison[:3]
         if request.preference == RoutePreference.FASTEST:
             return enriched
-        fastest = min(enriched, key=lambda route: route.metrics.duration_s)
         cap = 15.0 if request.preference == RoutePreference.BALANCED_SHADE else 30.0
         if request.constraints.maximum_time_detour_percent is not None:
             cap = request.constraints.maximum_time_detour_percent
@@ -327,23 +359,62 @@ class RouteFeatureAnalyzer:
         return ordered[:3]
 
     @staticmethod
+    def _best_shade_route(
+        request: RoutePlanRequest,
+        routes: list[RouteAlternative],
+        fastest: RouteAlternative,
+        default_cap: float,
+    ) -> RouteAlternative:
+        cap = (
+            request.constraints.maximum_time_detour_percent
+            if request.constraints.maximum_time_detour_percent is not None
+            else default_cap
+        )
+        candidates = [
+            route
+            for route in routes
+            if route.metrics.duration_s <= fastest.metrics.duration_s * (1 + cap / 100)
+        ]
+        return min(
+            candidates,
+            key=lambda route: (
+                route.metrics.sun_exposure_minutes or 0,
+                route.metrics.duration_s,
+            ),
+        )
+
+    @staticmethod
     def _signal_routes(
         request: RoutePlanRequest,
         routes: list[RouteAlternative],
         context: OsmRouteContext,
     ) -> list[RouteAlternative]:
         if not context.complete:
-            if request.preference == RoutePreference.FEWER_LIGHTS:
-                routes[0] = routes[0].model_copy(
-                    update={"fallback_reason": "signal_data_temporarily_unavailable"}
-                )
+            if request.include_comparisons or request.preference == RoutePreference.FEWER_LIGHTS:
+                fastest = min(routes, key=lambda route: route.metrics.duration_s)
+                return [
+                    fastest.model_copy(
+                        update={
+                            "label_key": "route.fastest",
+                            "fallback_reason": "signal_data_temporarily_unavailable",
+                        }
+                    )
+                ]
             return routes
         enriched = [_annotate_signals(route, context.traffic_signals) for route in routes]
         fastest = min(enriched, key=lambda route: route.metrics.duration_s)
-        if request.preference != RoutePreference.FEWER_LIGHTS:
+        if not request.include_comparisons and request.preference != RoutePreference.FEWER_LIGHTS:
             return enriched
-        time_cap = request.constraints.maximum_time_detour_percent or 10.0
-        distance_cap = request.constraints.maximum_distance_detour_percent or 15.0
+        time_cap = (
+            request.constraints.maximum_time_detour_percent
+            if request.constraints.maximum_time_detour_percent is not None
+            else 10.0
+        )
+        distance_cap = (
+            request.constraints.maximum_distance_detour_percent
+            if request.constraints.maximum_distance_detour_percent is not None
+            else 15.0
+        )
         baseline_signals = fastest.metrics.traffic_signals or 0
         candidates = []
         for route in enriched:
@@ -368,9 +439,12 @@ class RouteFeatureAnalyzer:
                 "metrics": preferred.metrics.model_copy(update={"signals_avoided": reduction}),
             }
         )
-        result = [preferred]
-        if preferred.id != fastest.id:
-            result.append(fastest.model_copy(update={"label_key": "route.fastest"}))
+        fastest = fastest.model_copy(update={"label_key": "route.fastest"})
+        result = (
+            [preferred, fastest]
+            if request.preference == RoutePreference.FEWER_LIGHTS
+            else [fastest, preferred]
+        )
         return result
 
 
@@ -554,6 +628,17 @@ def _cluster_signals(signals: list[Point]) -> list[Point]:
         else:
             cluster.append(signal)
     return [unary_union(cluster).centroid for cluster in clusters]
+
+
+def _deduplicate_route_geometry(routes: list[RouteAlternative]) -> list[RouteAlternative]:
+    result: list[RouteAlternative] = []
+    seen: set[str] = set()
+    for route in routes:
+        if route.encoded_polyline in seen:
+            continue
+        result.append(route)
+        seen.add(route.encoded_polyline)
+    return result
 
 
 def _mapping(value: object) -> dict[str, Any]:
