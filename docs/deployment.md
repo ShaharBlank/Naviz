@@ -9,7 +9,10 @@
 - Source repository: <https://github.com/ShaharBlank/Naviz> (Apache-2.0)
 - Expo project: <https://expo.dev/accounts/shaharblank/projects/naviz>
 - Android build:
-  <https://expo.dev/accounts/shaharblank/projects/naviz/builds/be90e304-e999-463c-9f53-b6364c519c2c>
+  <https://expo.dev/accounts/shaharblank/projects/naviz/builds/b63f768f-ad39-4cc0-89e5-36477836675f>
+
+Render is pinned to the matching immutable image tag
+`ghcr.io/shaharblank/naviz-api:703ff4e211f2c04e4f5e1132a54e2b1887061a80`.
 
 The Android `preview` profile embeds `https://naviz-api.onrender.com` as
 `EXPO_PUBLIC_API_URL`. The public EAS artifact is temporary; the verified local

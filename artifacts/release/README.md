@@ -1,5 +1,37 @@
 # Naviz Android releases
 
+## 0.4.0 (version code 6)
+
+- File: `Naviz-0.4.0-metropolitan.apk`
+- Size: 148,408,034 bytes
+- SHA-256: `B7E7E558E5736580EA3C62AE80B2DB606F076AF66DC6B5F2C2369842D6C3CED3`
+- Package: `app.naviz.mobile`
+- Android SDK: minimum 24, target 36
+- Expo SDK: 57
+- Build profile: `preview` (internal APK distribution)
+- Build ID: `b63f768f-ad39-4cc0-89e5-36477836675f`
+- Source commit: `703ff4e211f2c04e4f5e1132a54e2b1887061a80`
+- Backend embedded at bundle time: <https://naviz-api.onrender.com>
+- Backend image pinned on Render:
+  `ghcr.io/shaharblank/naviz-api:703ff4e211f2c04e4f5e1132a54e2b1887061a80`
+- Build page:
+  <https://expo.dev/accounts/shaharblank/projects/naviz/builds/b63f768f-ad39-4cc0-89e5-36477836675f>
+- CI:
+  <https://github.com/ShaharBlank/Naviz/actions/runs/32049700971>
+- Container publication:
+  <https://github.com/ShaharBlank/Naviz/actions/runs/32049700964>
+
+Local verification confirmed the manifest, version, all four Android native
+architectures, location/background permissions, production API URL, and APK v2
+signature. `apksigner` reports the same RSA-2048 release signer as prior builds,
+with certificate SHA-256
+`0A982BB78F2E1223947EE210431522DD8011CC98B03650D6F57B3C22795673CE`.
+The exact APK was clean-installed on an Android 16 Pixel emulator and exercised
+against the commit-pinned Render backend. Device validation covered complete
+multiline combined-mode labels, automatic selector collapse, route-preference
+comparison, total traffic-light counts, live GPS progress, three-fix reroute
+hysteresis, recalculation, background-location handling, and arrival.
+
 ## 0.3.1 (version code 5)
 
 - File: `Naviz-0.3.1-metropolitan.apk`
