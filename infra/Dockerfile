@@ -13,6 +13,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY apps/api/pyproject.toml apps/api/README.md ./apps/api/
 COPY apps/api/src ./apps/api/src
+COPY apps/api/data ./apps/api/data
 COPY apps/api/alembic.ini ./apps/api/alembic.ini
 COPY apps/api/migrations ./apps/api/migrations
 COPY packages/data_pipeline/pyproject.toml ./packages/data_pipeline/pyproject.toml

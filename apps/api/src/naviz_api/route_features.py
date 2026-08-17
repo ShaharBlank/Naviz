@@ -2,11 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import math
+import sqlite3
+import struct
 from dataclasses import dataclass
 from datetime import datetime
 from itertools import pairwise
+from pathlib import Path
 from time import monotonic
-from typing import Any, cast
+from typing import Any, Protocol, cast
 
 import httpx
 from astral import Observer
@@ -52,6 +55,108 @@ class _ContextCacheEntry:
     context: OsmRouteContext
 
 
+class RouteContextPort(Protocol):
+    async def context(
+        self,
+        routes: list[RouteAlternative],
+        *,
+        buildings: bool,
+        traffic_signals: bool,
+    ) -> OsmRouteContext: ...
+
+
+class SqliteOsmRouteContext:
+    """Reads a pinned, spatially indexed OSM feature bundle.
+
+    Building extraction belongs in the offline data pipeline. Keeping the
+    immutable result in SQLite removes a slow, failure-prone Overpass request
+    from every route plan while preserving the same enrichment contract.
+    """
+
+    def __init__(self, database_path: str | Path) -> None:
+        self._database_path = Path(database_path)
+        if not self._database_path.is_file():
+            raise FileNotFoundError(self._database_path)
+
+    async def context(
+        self,
+        routes: list[RouteAlternative],
+        *,
+        buildings: bool,
+        traffic_signals: bool,
+    ) -> OsmRouteContext:
+        bounds = _route_bounds(routes)
+        corridor = unary_union(
+            [
+                LineString(
+                    [
+                        _WGS84_TO_ITM.transform(point.longitude, point.latitude)
+                        for point in decode_polyline(route.encoded_polyline)
+                    ]
+                ).buffer(260)
+                for route in routes
+            ]
+        )
+        return await asyncio.to_thread(
+            self._load,
+            bounds,
+            corridor,
+            buildings=buildings,
+            traffic_signals=traffic_signals,
+        )
+
+    def _load(
+        self,
+        bounds: tuple[float, float, float, float],
+        corridor: BaseGeometry,
+        *,
+        buildings: bool,
+        traffic_signals: bool,
+    ) -> OsmRouteContext:
+        west, south, east, north = bounds
+        building_items: list[Building] = []
+        signal_items: list[Point] = []
+        connection = sqlite3.connect(f"file:{self._database_path}?mode=ro", uri=True)
+        try:
+            if buildings:
+                rows = connection.execute(
+                    """
+                    SELECT b.coordinates, b.height_m, b.confidence
+                    FROM building_index AS i
+                    JOIN buildings AS b ON b.id = i.id
+                    WHERE i.max_lon >= ? AND i.min_lon <= ?
+                      AND i.max_lat >= ? AND i.min_lat <= ?
+                    """,
+                    (west, east, south, north),
+                )
+                for coordinates, height_m, confidence in rows:
+                    polygon = _polygon_from_coordinate_blob(coordinates)
+                    if polygon is not None and corridor.intersects(polygon):
+                        building_items.append(
+                            Building(polygon, float(height_m), DataConfidence(confidence))
+                        )
+            if traffic_signals:
+                rows = connection.execute(
+                    """
+                    SELECT s.longitude, s.latitude
+                    FROM signal_index AS i
+                    JOIN signals AS s ON s.id = i.id
+                    WHERE i.max_lon >= ? AND i.min_lon <= ?
+                      AND i.max_lat >= ? AND i.min_lat <= ?
+                    """,
+                    (west, east, south, north),
+                )
+                for longitude, latitude in rows:
+                    x, y = _WGS84_TO_ITM.transform(float(longitude), float(latitude))
+                    signal_items.append(Point(x, y))
+        finally:
+            connection.close()
+        return OsmRouteContext(
+            buildings=tuple(building_items),
+            traffic_signals=tuple(_cluster_signals(signal_items)),
+        )
+
+
 class OverpassRouteContext:
     def __init__(
         self,
@@ -75,10 +180,7 @@ class OverpassRouteContext:
         buildings: bool,
         traffic_signals: bool,
     ) -> OsmRouteContext:
-        west = min(route.bbox[0] for route in routes) - 0.001
-        south = min(route.bbox[1] for route in routes) - 0.001
-        east = max(route.bbox[2] for route in routes) + 0.001
-        north = max(route.bbox[3] for route in routes) + 0.001
+        west, south, east, north = _route_bounds(routes)
         bounds = tuple(round(value, 4) for value in (south, west, north, east))
         key = (*bounds, buildings, traffic_signals)
         cached = self._cache.get(key)
@@ -155,7 +257,7 @@ class OverpassRouteContext:
 
 
 class RouteFeatureAnalyzer:
-    def __init__(self, context: OverpassRouteContext) -> None:
+    def __init__(self, context: RouteContextPort) -> None:
         self._context = context
 
     async def enrich(
@@ -404,6 +506,30 @@ def _segment_samples(first: Coordinate, second: Coordinate, distance_m: float) -
         x, y = _WGS84_TO_ITM.transform(longitude, latitude)
         result.append(Point(x, y))
     return result
+
+
+def _route_bounds(routes: list[RouteAlternative]) -> tuple[float, float, float, float]:
+    return (
+        min(route.bbox[0] for route in routes) - 0.001,
+        min(route.bbox[1] for route in routes) - 0.001,
+        max(route.bbox[2] for route in routes) + 0.001,
+        max(route.bbox[3] for route in routes) + 0.001,
+    )
+
+
+def _polygon_from_coordinate_blob(value: object) -> Polygon | MultiPolygon | None:
+    if not isinstance(value, bytes) or len(value) < 32 or len(value) % 8:
+        return None
+    coordinates = [
+        _WGS84_TO_ITM.transform(longitude / 10_000_000, latitude / 10_000_000)
+        for longitude, latitude in struct.iter_unpack("<ii", value)
+    ]
+    polygon = Polygon(coordinates)
+    if not polygon.is_valid:
+        polygon = polygon.buffer(0)
+    if polygon.is_empty or not isinstance(polygon, Polygon | MultiPolygon):
+        return None
+    return polygon
 
 
 def _building_height(tags: dict[str, Any]) -> tuple[float, DataConfidence]:

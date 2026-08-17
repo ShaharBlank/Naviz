@@ -9,7 +9,7 @@
 - Source repository: <https://github.com/ShaharBlank/Naviz> (Apache-2.0)
 - Expo project: <https://expo.dev/accounts/shaharblank/projects/naviz>
 - Android build:
-  <https://expo.dev/accounts/shaharblank/projects/naviz/builds/d1adae85-ba7f-46c2-98c7-9de1e8b71860>
+  <https://expo.dev/accounts/shaharblank/projects/naviz/builds/89413540-34e6-4894-88a8-12f360f39d60>
 
 The Android `preview` profile embeds `https://naviz-api.onrender.com` as
 `EXPO_PUBLIC_API_URL`. The public EAS artifact is temporary; the verified local
@@ -26,6 +26,9 @@ copy and its checksum are documented in `artifacts/release/README.md`.
 5. Keep `NAVIZ_LIVE_PROVIDERS=true` and pin `NAVIZ_DATA_BUNDLE` to the deployed
    regional integration version. Production startup fails if a required provider
    URL is absent, so it cannot silently fall back to test fixtures.
+6. Set `NAVIZ_FEATURE_BUNDLE_PATH=/app/apps/api/data/metro-osm-features.sqlite3`.
+   The bundled SQLite/RTree extract owns shade and traffic-signal lookup during
+   requests; Overpass remains an offline refresh/fallback source only.
 
 The free profile has one worker, cold starts, low concurrency, and no SLA. The
 mobile app displays “Starting routing engine” after 2.5 seconds and never invents
@@ -56,9 +59,9 @@ but does not contain signing keys, provider secrets, or a fake live-data URL.
 ## Regional provider contract
 
 The hosted profile uses Photon for regional search, Valhalla for street routes,
-Overpass for corridor building/signal context, and Transitous/MOTIS for scheduled
-transit. Calls include a named contact User-Agent, are cached, remain within the
-metropolitan coverage boundary, and produce explicit service errors instead of
-returning fixture routes when a provider is unavailable. Transitous deployment
-also requires a publicly licensed source repository and visible source
-attribution in the mobile route card.
+the pinned Geofabrik/OSM feature bundle for shade and signals, and
+Transitous/MOTIS for scheduled transit. External calls include a named contact
+User-Agent, are cached, remain within the metropolitan coverage boundary, and
+produce explicit service errors instead of returning fixture routes when a
+provider is unavailable. Transitous deployment also requires a publicly licensed
+source repository and visible source attribution in the mobile route card.

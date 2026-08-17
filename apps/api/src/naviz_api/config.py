@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     transitous_url: str | None = None
     photon_url: str | None = None
     overpass_url: str | None = None
+    feature_bundle_path: str | None = None
     provider_contact: str = "https://github.com/ShaharBlank/Naviz"
     live_providers: bool = False
     coverage_bbox: tuple[float, float, float, float] = (34.69, 31.94, 34.93, 32.20)

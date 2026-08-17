@@ -19,7 +19,9 @@ services:
       - key: NAVIZ_PHOTON_URL
         value: https://photon.komoot.io
       - key: NAVIZ_OVERPASS_URL
-        value: https://overpass-api.de/api/interpreter
+        value: https://overpass.private.coffee/api/interpreter
+      - key: NAVIZ_FEATURE_BUNDLE_PATH
+        value: /app/apps/api/data/metro-osm-features.sqlite3
       - key: NAVIZ_PROVIDER_CONTACT
         value: https://github.com/ShaharBlank/Naviz
       - key: NAVIZ_COVERAGE_BBOX

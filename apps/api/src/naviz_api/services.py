@@ -21,7 +21,12 @@ from .models import (
     RoutePlanResponse,
     TravelMode,
 )
-from .route_features import OverpassRouteContext, RouteFeatureAnalyzer
+from .route_features import (
+    OverpassRouteContext,
+    RouteContextPort,
+    RouteFeatureAnalyzer,
+    SqliteOsmRouteContext,
+)
 from .routing import StreetRouter
 from .search import PlaceIndex
 from .transit import RangeRaptor
@@ -170,11 +175,12 @@ def build_services(settings: Settings) -> Services:
             not settings.valhalla_url
             or not settings.transitous_url
             or not settings.photon_url
-            or not settings.overpass_url
+            or (not settings.overpass_url and not settings.feature_bundle_path)
         ):
             raise ValueError(
                 "Live providers require NAVIZ_VALHALLA_URL, NAVIZ_TRANSITOUS_URL, "
-                "NAVIZ_PHOTON_URL, and NAVIZ_OVERPASS_URL"
+                "NAVIZ_PHOTON_URL, and either NAVIZ_FEATURE_BUNDLE_PATH or "
+                "NAVIZ_OVERPASS_URL"
             )
         coverage = CoverageArea.from_tuple(settings.coverage_bbox)
         user_agent = f"Naviz/0.2 ({settings.provider_contact})"
@@ -188,6 +194,15 @@ def build_services(settings: Settings) -> Services:
                 cache_seconds=settings.provider_cache_seconds,
             ),
         )
+        feature_context: RouteContextPort
+        if settings.feature_bundle_path:
+            feature_context = SqliteOsmRouteContext(settings.feature_bundle_path)
+        else:
+            feature_context = OverpassRouteContext(
+                cast(str, settings.overpass_url),
+                user_agent=user_agent,
+                cache_seconds=max(settings.provider_cache_seconds, 1_800),
+            )
         routes = LiveRoutePlanner(
             ValhallaAdapter(settings.valhalla_url, user_agent=user_agent),
             TransitousAdapter(settings.transitous_url, user_agent=user_agent),
@@ -195,13 +210,7 @@ def build_services(settings: Settings) -> Services:
             data_version=settings.data_bundle,
             route_ttl_seconds=settings.route_ttl_seconds,
             cache_seconds=settings.provider_cache_seconds,
-            feature_analyzer=RouteFeatureAnalyzer(
-                OverpassRouteContext(
-                    settings.overpass_url,
-                    user_agent=user_agent,
-                    cache_seconds=max(settings.provider_cache_seconds, 1_800),
-                )
-            ),
+            feature_analyzer=RouteFeatureAnalyzer(feature_context),
         )
     else:
         graph = build_demo_graph()

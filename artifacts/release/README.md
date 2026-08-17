@@ -1,5 +1,26 @@
 # Naviz Android releases
 
+## 0.2.0 (version code 2)
+
+- File: `Naviz-0.2.0-metropolitan.apk`
+- Size: 146,856,462 bytes
+- SHA-256: `02FF47614ABC3DF33DE21D8970828F2D2A617F448170F9A3CF8A3378AD20A8CD`
+- Package: `app.naviz.mobile`
+- Android SDK: minimum 24, target 36
+- Expo SDK: 56
+- Build profile: `preview` (internal APK distribution)
+- Build ID: `89413540-34e6-4894-88a8-12f360f39d60`
+- Source commit: `ad4c43532eb91f237b10af6afeb2bf8de577e4ce`
+- Backend embedded at bundle time: <https://naviz-api.onrender.com>
+- Build page:
+  <https://expo.dev/accounts/shaharblank/projects/naviz/builds/89413540-34e6-4894-88a8-12f360f39d60>
+
+Local verification confirmed the manifest, all four Android native architectures,
+location/background permissions, Hermes bundle, production API URL, and APK v2
+signature. The API-specific localhost fallbacks are absent. `apksigner` reports
+one RSA-2048 signer with certificate SHA-256
+`0A982BB78F2E1223947EE210431522DD8011CC98B03650D6F57B3C22795673CE`.
+
 ## 0.1.0 (version code 1)
 
 - File: `Naviz-0.1.0-preview.apk`
