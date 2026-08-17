@@ -41,13 +41,9 @@ async def test_sqlite_context_reads_only_route_corridor_features(tmp_path) -> No
         for longitude, latitude in coordinates
     )
     connection.execute("INSERT INTO buildings VALUES (1, ?, 16, 'high')", (blob,))
-    connection.execute(
-        "INSERT INTO building_index VALUES (1, 34.7790, 34.7792, 32.0730, 32.0732)"
-    )
+    connection.execute("INSERT INTO building_index VALUES (1, 34.7790, 34.7792, 32.0730, 32.0732)")
     connection.execute("INSERT INTO signals VALUES (1, 34.7791, 32.0731)")
-    connection.execute(
-        "INSERT INTO signal_index VALUES (1, 34.7791, 34.7791, 32.0731, 32.0731)"
-    )
+    connection.execute("INSERT INTO signal_index VALUES (1, 34.7791, 34.7791, 32.0731, 32.0731)")
     connection.execute("INSERT INTO signals VALUES (2, 35.1, 31.8)")
     connection.execute("INSERT INTO signal_index VALUES (2, 35.1, 35.1, 31.8, 31.8)")
     connection.commit()

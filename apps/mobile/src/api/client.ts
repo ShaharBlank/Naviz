@@ -2,6 +2,7 @@ import type {
   Coordinate,
   DataStatus,
   Locale,
+  MobilityResponse,
   ProblemDetail,
   RoutePlanRequest,
   RoutePlanResponse,
@@ -126,4 +127,18 @@ export function reroute(
 
 export function getDataStatus(): Promise<DataStatus> {
   return fetchJson("/v1/data/status", undefined, 8_000);
+}
+
+export function getMobilityVehicles(center: Coordinate): Promise<MobilityResponse> {
+  // Roughly a one-kilometre walking catchment in metropolitan Tel Aviv.
+  // Keeping the view local avoids an unreadable wall of fleet markers.
+  const latitudeRadius = 0.008;
+  const longitudeRadius = 0.009;
+  const parameters = new URLSearchParams({
+    min_latitude: String(center.latitude - latitudeRadius),
+    min_longitude: String(center.longitude - longitudeRadius),
+    max_latitude: String(center.latitude + latitudeRadius),
+    max_longitude: String(center.longitude + longitudeRadius),
+  });
+  return fetchJson(`/v1/mobility/vehicles?${parameters.toString()}`, undefined, 12_000);
 }

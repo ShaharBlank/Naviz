@@ -9,6 +9,9 @@
 - SIRI is disabled until legitimate Ministry credentials and terms are supplied.
 - Each GBFS adapter records provider, discovery URL, deep link, license metadata,
   observation time, and freshness. Availability never implies booking rights.
+- Dott Tel Aviv live vehicle availability is read from the operator's official
+  GBFS 2.3 discovery feed and attributed under CC-BY-4.0. Naviz shows discovery
+  data only and hands booking/unlocking to Dott's operator app.
 - Municipal building/tree/crossing inputs are accepted only when redistribution
   and derived-artifact terms are recorded in the bundle manifest.
 

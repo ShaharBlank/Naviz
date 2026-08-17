@@ -153,9 +153,7 @@ class LiveRoutePlanner:
             ]
             if not maneuvers and request.mode in _TRANSIT_MODES:
                 if leg.mode == TravelMode.TRANSIT:
-                    service = " ".join(
-                        value for value in (leg.route_name, leg.headsign) if value
-                    )
+                    service = " ".join(value for value in (leg.route_name, leg.headsign) if value)
                     instruction_key = "navigation.board"
                     modifier = "board"
                     street_name = service or leg.to_name
@@ -223,8 +221,10 @@ class LiveRoutePlanner:
         route_id = sha256(
             f"{self._data_version}|{request.mode.value}|{encoded}|{itinerary.departure_at}".encode()
         ).hexdigest()[:20]
-        label_key = "route.transitRecommended" if request.mode in _TRANSIT_MODES else (
-            "route.fastest" if index == 0 else "route.alternative"
+        label_key = (
+            "route.transitRecommended"
+            if request.mode in _TRANSIT_MODES
+            else ("route.fastest" if index == 0 else "route.alternative")
         )
         if not route_maneuvers and request.mode not in _TRANSIT_MODES:
             route_maneuvers = [
@@ -284,6 +284,7 @@ class LiveRoutePlanner:
                 dataset_versions={"regional_data": self._data_version},
             ),
             warnings=list(itinerary.warnings),
+            fallback_reason=itinerary.fallback_reason,
             expires_at=datetime.now(TEL_AVIV_TZ) + timedelta(seconds=self._ttl),
         )
 

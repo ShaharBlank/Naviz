@@ -21,6 +21,8 @@ export type DataQuality = Schemas["DataQuality"];
 export type RouteAlternative = Schemas["RouteAlternative"];
 export type RoutePlanResponse = Schemas["RoutePlanResponse"];
 export type DataStatus = Schemas["DataStatus"];
+export type MobilityVehicle = Schemas["MobilityVehicle"];
+export type MobilityResponse = Schemas["MobilityResponse"];
 
 type GeneratedRoutePlanRequest = Schemas["RoutePlanRequest"];
 export type RoutePlanRequest = GeneratedRoutePlanRequest & {

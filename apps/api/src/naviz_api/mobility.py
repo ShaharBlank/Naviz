@@ -116,6 +116,7 @@ class MobilityService:
             for vehicle in vehicles
         ]
 
+
 async def _empty_response() -> httpx.Response:
     return httpx.Response(200, json={"data": {"vehicle_types": []}})
 

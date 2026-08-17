@@ -130,9 +130,7 @@ class PhotonPlaceSearch:
         await self._store(key, result)
         return result
 
-    async def _get(
-        self, path: str, params: dict[str, str | int | float]
-    ) -> dict[str, Any]:
+    async def _get(self, path: str, params: dict[str, str | int | float]) -> dict[str, Any]:
         try:
             async with httpx.AsyncClient(
                 timeout=self._timeout,

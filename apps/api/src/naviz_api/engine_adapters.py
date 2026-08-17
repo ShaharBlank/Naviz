@@ -48,6 +48,7 @@ class EngineItinerary:
     arrival_at: datetime
     legs: tuple[EngineLeg, ...]
     warnings: tuple[str, ...] = field(default_factory=tuple)
+    fallback_reason: str | None = None
 
 
 class StreetEnginePort(Protocol):
@@ -93,9 +94,7 @@ class ValhallaAdapter:
                         if candidate_response.status_code >= 400:
                             continue
                         result.extend(
-                            self.normalize(
-                                cast(dict[str, Any], candidate_response.json()), request
-                            )
+                            self.normalize(cast(dict[str, Any], candidate_response.json()), request)
                         )
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code in {400, 404}:
@@ -105,9 +104,7 @@ class ValhallaAdapter:
             raise RoutingUnavailableError from exc
         if not result:
             raise NoRouteError
-        fastest = min(
-            (item.arrival_at - item.departure_at).total_seconds() for item in result
-        )
+        fastest = min((item.arrival_at - item.departure_at).total_seconds() for item in result)
         unique: list[EngineItinerary] = []
         seen: set[tuple[tuple[float, float], ...]] = set()
         for itinerary in sorted(
@@ -279,6 +276,22 @@ class TransitousAdapter:
                     f"{self._base_url}/api/v5/plan",
                     params=self.request_parameters(request),
                 )
+                if request.mode == TravelMode.RENTAL_TRANSIT and response.status_code >= 500:
+                    # Rental routing is only enabled where Transitous has a
+                    # regional GBFS source. Keep public transport usable when
+                    # that optional graph is absent.
+                    response = await client.get(
+                        f"{self._base_url}/api/v5/plan",
+                        params=self.request_parameters(request, rental_fallback=True),
+                    )
+                    response.raise_for_status()
+                    result = [
+                        _with_fallback(item, "rental_availability_unavailable")
+                        for item in self.normalize(cast(dict[str, Any], response.json()), request)
+                    ]
+                    if not result:
+                        raise NoRouteError
+                    return result
                 response.raise_for_status()
             result = self.normalize(cast(dict[str, Any], response.json()), request)
         except httpx.HTTPStatusError as exc:
@@ -292,7 +305,9 @@ class TransitousAdapter:
         return result
 
     @staticmethod
-    def request_parameters(request: RoutePlanRequest) -> dict[str, str]:
+    def request_parameters(
+        request: RoutePlanRequest, *, rental_fallback: bool = False
+    ) -> dict[str, str]:
         if request.mode not in {
             TravelMode.TRANSIT,
             TravelMode.BIKE_TRANSIT,
@@ -322,10 +337,10 @@ class TransitousAdapter:
                 preTransitModes="BIKE",
                 postTransitModes="BIKE",
                 requireBikeTransport=str(
-                    request.vehicle.kind == VehicleKind.FULL_SIZE_BIKE
+                    _effective_vehicle_kind(request) == VehicleKind.FULL_SIZE_BIKE
                 ).lower(),
             )
-        elif request.mode == TravelMode.RENTAL_TRANSIT:
+        elif request.mode == TravelMode.RENTAL_TRANSIT and not rental_fallback:
             params.update(
                 directModes="BIKE_SHARING",
                 preTransitModes="WALK,BIKE_SHARING",
@@ -359,10 +374,8 @@ class TransitousAdapter:
                     # MOTIS applies effective GTFS/operator bicycle rules when
                     # requireBikeTransport=true. Never accept an explicitly denied leg.
                     bikes_allowed = leg.get("bikesAllowed")
-                    folded_vehicle = request.vehicle.can_fold and request.vehicle.kind in {
-                        VehicleKind.FOLDING_BIKE,
-                        VehicleKind.PERSONAL_SCOOTER,
-                    }
+                    effective_kind = _effective_vehicle_kind(request)
+                    folded_vehicle = _vehicle_can_fold(request, effective_kind)
                     if not folded_vehicle and bikes_allowed is not True:
                         permitted = False
                         break
@@ -392,9 +405,7 @@ class TransitousAdapter:
                         headsign=_optional_display_text(leg.get("headsign")),
                         bicycle_permission=(
                             "ALLOWED_FOLDED_POLICY"
-                            if request.vehicle.can_fold
-                            and request.vehicle.kind
-                            in {VehicleKind.FOLDING_BIKE, VehicleKind.PERSONAL_SCOOTER}
+                            if _vehicle_can_fold(request, _effective_vehicle_kind(request))
                             else "ALLOWED_GTFS"
                             if leg.get("bikesAllowed") is True
                             else None
@@ -520,6 +531,7 @@ class OpenTripPlannerAdapter:
 def _otp_mode(value: str) -> TravelMode:
     return {
         "WALK": TravelMode.WALK,
+        "BIKE": TravelMode.BIKE,
         "BICYCLE": TravelMode.BIKE,
         "SCOOTER": TravelMode.SCOOTER,
         "CAR": TravelMode.CAR,
@@ -530,6 +542,33 @@ def _otp_mode(value: str) -> TravelMode:
         "FERRY": TravelMode.TRANSIT,
         "BIKE_SHARING": TravelMode.BIKE,
     }.get(value.upper(), TravelMode.TRANSIT)
+
+
+def _effective_vehicle_kind(request: RoutePlanRequest) -> VehicleKind:
+    if request.vehicle.kind != VehicleKind.NONE:
+        return request.vehicle.kind
+    if request.mode == TravelMode.BIKE_TRANSIT:
+        return VehicleKind.FOLDING_BIKE
+    if request.mode == TravelMode.SCOOTER_TRANSIT:
+        return VehicleKind.PERSONAL_SCOOTER
+    return VehicleKind.NONE
+
+
+def _vehicle_can_fold(request: RoutePlanRequest, kind: VehicleKind) -> bool:
+    return request.vehicle.can_fold or kind in {
+        VehicleKind.FOLDING_BIKE,
+        VehicleKind.PERSONAL_SCOOTER,
+    }
+
+
+def _with_fallback(item: EngineItinerary, reason: str) -> EngineItinerary:
+    return EngineItinerary(
+        departure_at=item.departure_at,
+        arrival_at=item.arrival_at,
+        legs=item.legs,
+        warnings=item.warnings,
+        fallback_reason=reason,
+    )
 
 
 def _mapping(value: object) -> dict[str, Any]:

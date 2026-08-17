@@ -22,6 +22,8 @@ services:
         value: https://overpass.private.coffee/api/interpreter
       - key: NAVIZ_FEATURE_BUNDLE_PATH
         value: /app/apps/api/data/metro-osm-features.sqlite3
+      - key: NAVIZ_GBFS_FEEDS
+        value: Dott|https://gbfs.api.ridedott.com/public/v2/tel-aviv/gbfs.json|https://ridedott.com
       - key: NAVIZ_PROVIDER_CONTACT
         value: https://github.com/ShaharBlank/Naviz
       - key: NAVIZ_COVERAGE_BBOX

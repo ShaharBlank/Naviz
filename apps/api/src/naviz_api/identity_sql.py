@@ -103,9 +103,7 @@ class SqlAlchemyIdentityRepository:
             row = await session.get(PreferenceRow, subject)
         return UserPreferences.model_validate(row.payload) if row else UserPreferences()
 
-    async def save_preferences(
-        self, subject: str, preferences: UserPreferences
-    ) -> UserPreferences:
+    async def save_preferences(self, subject: str, preferences: UserPreferences) -> UserPreferences:
         async with self._sessions() as session:
             row = await session.get(PreferenceRow, subject)
             if row is None:

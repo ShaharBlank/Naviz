@@ -76,9 +76,7 @@ class InMemoryIdentityRepository:
         with self._lock:
             return self._preferences.get(subject, UserPreferences())
 
-    async def save_preferences(
-        self, subject: str, preferences: UserPreferences
-    ) -> UserPreferences:
+    async def save_preferences(self, subject: str, preferences: UserPreferences) -> UserPreferences:
         with self._lock:
             self._preferences[subject] = preferences
         return preferences

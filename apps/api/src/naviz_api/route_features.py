@@ -192,7 +192,7 @@ class OverpassRouteContext:
             clauses.append(f'node["highway"="traffic_signals"]({bbox_value});')
         if buildings:
             clauses.append(f'way["building"]({bbox_value});')
-        query = f'[out:json][timeout:15];({"".join(clauses)});out tags geom;'
+        query = f"[out:json][timeout:15];({''.join(clauses)});out tags geom;"
         try:
             async with httpx.AsyncClient(
                 timeout=self._timeout,
@@ -223,9 +223,7 @@ class OverpassRouteContext:
             tags = _mapping(element.get("tags"))
             if tags.get("highway") == "traffic_signals":
                 try:
-                    x, y = _WGS84_TO_ITM.transform(
-                        float(element["lon"]), float(element["lat"])
-                    )
+                    x, y = _WGS84_TO_ITM.transform(float(element["lon"]), float(element["lat"]))
                     signals.append(Point(x, y))
                 except (KeyError, TypeError, ValueError):
                     continue
@@ -295,9 +293,7 @@ class RouteFeatureAnalyzer:
             departure,
             center,
         )
-        enriched = [
-            _annotate_shade(route, shadows, high_shadows, sun_up) for route in routes
-        ]
+        enriched = [_annotate_shade(route, shadows, high_shadows, sun_up) for route in routes]
         if request.preference == RoutePreference.FASTEST:
             return enriched
         fastest = min(enriched, key=lambda route: route.metrics.duration_s)
@@ -364,11 +360,7 @@ class RouteFeatureAnalyzer:
                 continue
             candidates.append((route.metrics.duration_s + signals * 25, route, reduction))
         if not candidates:
-            return [
-                fastest.model_copy(
-                    update={"fallback_reason": "no_material_signal_reduction"}
-                )
-            ]
+            return [fastest.model_copy(update={"fallback_reason": "no_material_signal_reduction"})]
         _, preferred, reduction = min(candidates, key=lambda item: item[0])
         preferred = preferred.model_copy(
             update={
@@ -483,9 +475,7 @@ def _annotate_shade(
     )
 
 
-def _annotate_signals(
-    route: RouteAlternative, signals: tuple[Point, ...]
-) -> RouteAlternative:
+def _annotate_signals(route: RouteAlternative, signals: tuple[Point, ...]) -> RouteAlternative:
     geometry = decode_polyline(route.encoded_polyline)
     line = LineString(
         [_WGS84_TO_ITM.transform(point.longitude, point.latitude) for point in geometry]

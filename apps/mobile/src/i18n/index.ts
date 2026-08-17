@@ -76,6 +76,14 @@ const resources = {
         no_material_signal_reduction: "המסלול המהיר נבחר; החלופות לא חסכו מספיק רמזורים.",
         shade_data_temporarily_unavailable: "לא ניתן היה לרענן את פרטי הצל; המסלול המהיר נבחר.",
         signal_data_temporarily_unavailable: "לא ניתן היה לרענן את ספירת הרמזורים; המסלול המהיר נבחר.",
+        rental_availability_unavailable: "לא נמצא כלי שיתופי זמין למסלול הזה; מוצג מסלול תחבורה ציבורית.",
+      },
+      mobility: {
+        title: "כלי שיתופי",
+        loading: "טוען זמינות חיה של כלים שיתופיים…",
+        available: "{{count}} כלים זמינים בקרבתך · הקישו על נקודה במפה לפתיחת אפליקציית המפעיל",
+        noDeepLink: "פתחו את אפליקציית המפעיל כדי לשכור את הכלי.",
+        openError: "לא ניתן לפתוח את אפליקציית המפעיל במכשיר הזה.",
       },
       status: {
         searching: "מחפש מקומות…",
@@ -198,6 +206,14 @@ const resources = {
         no_material_signal_reduction: "Fastest route selected; alternatives did not avoid enough lights.",
         shade_data_temporarily_unavailable: "Shade details could not be refreshed; fastest route selected.",
         signal_data_temporarily_unavailable: "Traffic-light counts could not be refreshed; fastest route selected.",
+        rental_availability_unavailable: "No shared vehicle is available for this trip; showing public transit.",
+      },
+      mobility: {
+        title: "Shared vehicle",
+        loading: "Loading live shared vehicles…",
+        available: "{{count}} vehicles nearby · tap a map dot to open the operator app",
+        noDeepLink: "Open the operator app to rent this vehicle.",
+        openError: "The operator app could not be opened on this device.",
       },
       status: {
         searching: "Searching places…",

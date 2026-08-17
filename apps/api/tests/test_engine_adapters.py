@@ -27,9 +27,7 @@ def test_valhalla_request_preserves_truck_dimensions() -> None:
     )
     payload = ValhallaAdapter.request_payload(request)
     assert payload["costing"] == "truck"
-    assert payload["costing_options"] == {
-        "truck": {"height": 3.8, "width": 2.4, "weight": 18.0}
-    }
+    assert payload["costing_options"] == {"truck": {"height": 3.8, "width": 2.4, "weight": 18.0}}
     assert payload["date_time"] == {"type": 1, "value": "2026-08-02T09:00"}
 
 
@@ -261,3 +259,72 @@ def test_transitous_applies_cited_folded_vehicle_policy() -> None:
     }
     itinerary = TransitousAdapter.normalize(payload, request)[0]
     assert itinerary.legs[0].bicycle_permission == "ALLOWED_FOLDED_POLICY"
+
+
+def test_transitous_maps_motis_bike_access_leg() -> None:
+    request = RoutePlanRequest(
+        origin=ORIGIN,
+        destination=DESTINATION,
+        depart_at=datetime(2026, 8, 2, 9, 0, tzinfo=TZ),
+        mode=TravelMode.SCOOTER_TRANSIT,
+    )
+    geometry = encode_polyline([ORIGIN, DESTINATION], precision=6)
+    payload = {
+        "itineraries": [
+            {
+                "startTime": "2026-08-02T06:00:00Z",
+                "endTime": "2026-08-02T06:10:00Z",
+                "legs": [
+                    {
+                        "mode": "BIKE",
+                        "distance": 1_000,
+                        "duration": 300,
+                        "legGeometry": {"points": geometry},
+                        "from": {"name": "A"},
+                        "to": {"name": "B"},
+                    },
+                    {
+                        "mode": "BUS",
+                        "distance": 2_000,
+                        "duration": 300,
+                        "legGeometry": {"points": geometry},
+                        "from": {"name": "B"},
+                        "to": {"name": "C"},
+                        "bikesAllowed": False,
+                    },
+                ],
+            }
+        ]
+    }
+
+    itinerary = TransitousAdapter.normalize(payload, request)[0]
+    assert [leg.mode for leg in itinerary.legs] == [
+        TravelMode.SCOOTER,
+        TravelMode.TRANSIT,
+    ]
+    assert itinerary.legs[1].bicycle_permission == "ALLOWED_FOLDED_POLICY"
+
+
+def test_transitous_defaults_combined_modes_to_foldable_vehicles() -> None:
+    bike = RoutePlanRequest(
+        origin=ORIGIN,
+        destination=DESTINATION,
+        mode=TravelMode.BIKE_TRANSIT,
+    )
+    scooter = bike.model_copy(update={"mode": TravelMode.SCOOTER_TRANSIT})
+
+    assert TransitousAdapter.request_parameters(bike)["requireBikeTransport"] == "false"
+    assert TransitousAdapter.request_parameters(scooter)["requireBikeTransport"] == "false"
+
+
+def test_transitous_rental_fallback_uses_walk_access() -> None:
+    request = RoutePlanRequest(
+        origin=ORIGIN,
+        destination=DESTINATION,
+        mode=TravelMode.RENTAL_TRANSIT,
+    )
+
+    parameters = TransitousAdapter.request_parameters(request, rental_fallback=True)
+    assert parameters["directModes"] == "WALK"
+    assert parameters["preTransitModes"] == "WALK"
+    assert parameters["postTransitModes"] == "WALK"

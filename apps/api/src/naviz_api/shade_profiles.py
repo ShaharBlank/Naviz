@@ -19,10 +19,7 @@ class DirectionalHorizon:
         left = floor(position) % len(self.elevation_degrees)
         right = (left + 1) % len(self.elevation_degrees)
         ratio = position - floor(position)
-        return (
-            self.elevation_degrees[left] * (1 - ratio)
-            + self.elevation_degrees[right] * ratio
-        )
+        return self.elevation_degrees[left] * (1 - ratio) + self.elevation_degrees[right] * ratio
 
     def sun_visible(self, azimuth_degrees: float, elevation_degrees: float) -> bool:
         return elevation_degrees > 0 and elevation_degrees > self.obstruction_at(azimuth_degrees)

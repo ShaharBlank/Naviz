@@ -2,7 +2,7 @@
   "expo": {
     "name": "Naviz",
     "slug": "naviz",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "orientation": "portrait",
     "scheme": "naviz",
     "userInterfaceStyle": "light",
@@ -26,7 +26,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.naviz.mobile",
-      "buildNumber": "2",
+      "buildNumber": "3",
       "infoPlist": {
         "UIBackgroundModes": [
           "location"
@@ -36,7 +36,7 @@
     },
     "android": {
       "package": "app.naviz.mobile",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#111827"
       },

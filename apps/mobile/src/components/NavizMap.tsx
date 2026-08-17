@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { decodePolyline } from "../api/polyline";
-import type { Coordinate, RouteAlternative } from "../api/types";
+import type { Coordinate, MobilityVehicle, RouteAlternative } from "../api/types";
 import { colors, radius, shadow, spacing } from "../theme/tokens";
 
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
@@ -18,17 +18,21 @@ const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
 interface Props {
   route: RouteAlternative | null;
   userCoordinate: Coordinate | null;
+  mobilityVehicles: MobilityVehicle[];
   following: boolean;
   onRecenter: () => void;
   onOverview: () => void;
+  onMobilityVehiclePress: (vehicle: MobilityVehicle) => void;
 }
 
 function NavizMapComponent({
   route,
   userCoordinate,
+  mobilityVehicles,
   following,
   onRecenter,
   onOverview,
+  onMobilityVehiclePress,
 }: Props) {
   const { t } = useTranslation();
   const geometry = useMemo(
@@ -84,6 +88,25 @@ function NavizMapComponent({
     }),
     [geometry, route?.annotations],
   );
+  const mobilityPoints = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(
+    () => ({
+      type: "FeatureCollection" as const,
+      features: mobilityVehicles.map((vehicle) => ({
+        type: "Feature" as const,
+        properties: {
+          vehicleId: vehicle.id,
+          provider: vehicle.provider,
+          kind: vehicle.kind,
+          battery: vehicle.battery_percent,
+        },
+        geometry: {
+          type: "Point" as const,
+          coordinates: [vehicle.coordinate.longitude, vehicle.coordinate.latitude],
+        },
+      })),
+    }),
+    [mobilityVehicles],
+  );
 
   return (
     <View style={styles.container} accessibilityLabel={t("accessibility.map")}>
@@ -112,6 +135,28 @@ function NavizMapComponent({
           />
         )}
         <UserLocation animated accuracy heading />
+        {mobilityVehicles.length > 0 ? (
+          <GeoJSONSource
+            id="mobility-vehicles"
+            data={mobilityPoints}
+            onPress={(event) => {
+              const vehicleId = event.nativeEvent.features[0]?.properties?.vehicleId;
+              const vehicle = mobilityVehicles.find((item) => item.id === vehicleId);
+              if (vehicle) onMobilityVehiclePress(vehicle);
+            }}
+          >
+            <Layer
+              id="mobility-vehicle-points"
+              type="circle"
+              paint={{
+                "circle-color": colors.primary,
+                "circle-radius": 7,
+                "circle-stroke-color": colors.surface,
+                "circle-stroke-width": 3,
+              }}
+            />
+          </GeoJSONSource>
+        ) : null}
         {route && geometry.length >= 2 ? (
           <>
             <GeoJSONSource id="route-border" data={line}>

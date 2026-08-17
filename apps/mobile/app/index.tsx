@@ -5,12 +5,19 @@ import * as Location from "expo-location";
 import * as Speech from "expo-speech";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, StyleSheet, View } from "react-native";
+import { Alert, Linking, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { ApiError, getDataStatus, planRoute, reroute, searchPlaces } from "../src/api/client";
+import {
+  ApiError,
+  getDataStatus,
+  getMobilityVehicles,
+  planRoute,
+  reroute,
+  searchPlaces,
+} from "../src/api/client";
 import { decodePolyline } from "../src/api/polyline";
-import type { Coordinate, RoutePlanRequest } from "../src/api/types";
+import type { Coordinate, MobilityVehicle, RoutePlanRequest } from "../src/api/types";
 import { NavigationHud } from "../src/components/NavigationHud";
 import { NavizMap } from "../src/components/NavizMap";
 import { RouteCards } from "../src/components/RouteCards";
@@ -33,6 +40,7 @@ import {
 } from "../src/features/navigation/routeCache";
 
 const METRO_BBOX = { west: 34.69, south: 31.94, east: 34.93, north: 32.2 };
+const TEL_AVIV_CENTER = { latitude: 32.0733, longitude: 34.7799 };
 
 export default function HomeScreen() {
   const { t } = useTranslation();
@@ -155,6 +163,35 @@ export default function HomeScreen() {
     enabled: debouncedQuery.length > 0 && state.matches("idle"),
     retry: 1,
   });
+
+  const mobilityCenter = userCoordinate ?? origin ?? TEL_AVIV_CENTER;
+  const mobility = useQuery({
+    queryKey: [
+      "mobility",
+      mobilityCenter.latitude.toFixed(3),
+      mobilityCenter.longitude.toFixed(3),
+    ],
+    queryFn: () => getMobilityVehicles(mobilityCenter),
+    enabled: mode === "rental_transit",
+    staleTime: 20_000,
+    refetchInterval: 30_000,
+    retry: 1,
+  });
+
+  const openMobilityVehicle = useCallback(
+    async (vehicle: MobilityVehicle) => {
+      if (!vehicle.deep_link) {
+        Alert.alert(t("mobility.title"), t("mobility.noDeepLink"));
+        return;
+      }
+      try {
+        await Linking.openURL(vehicle.deep_link);
+      } catch {
+        Alert.alert(t("mobility.title"), t("mobility.openError"));
+      }
+    },
+    [t],
+  );
 
   const buildRequest = useCallback(
     (currentOrigin: Coordinate): RoutePlanRequest => ({
@@ -416,9 +453,11 @@ export default function HomeScreen() {
         <NavizMap
           route={selectedRoute}
           userCoordinate={userCoordinate}
+          mobilityVehicles={mode === "rental_transit" ? (mobility.data?.vehicles ?? []) : []}
           following={following}
           onRecenter={() => void centerOnUser()}
           onOverview={() => setFollowing(false)}
+          onMobilityVehiclePress={(vehicle) => void openMobilityVehicle(vehicle)}
         />
         {state.matches("idle") || planning || state.matches("error") ? (
           <SearchPanel
@@ -448,6 +487,11 @@ export default function HomeScreen() {
             locale={locale}
             onLocaleToggle={() => setLocale(locale === "he" ? "en" : "he")}
             onToggleFavorite={toggleFavorite}
+            mobilityCount={
+              mode === "rental_transit" && mobility.isFetching && !mobility.data
+                ? null
+                : (mobility.data?.vehicles.length ?? 0)
+            }
           />
         ) : null}
         {(state.matches("preview") || state.matches("permissionDenied")) && selectedRoute ? (

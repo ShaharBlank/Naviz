@@ -109,6 +109,7 @@ async def test_transit_legs_generate_boarding_and_arrival_guidance() -> None:
                             headsign="Reading",
                         ),
                     ),
+                    fallback_reason="rental_availability_unavailable",
                 )
             ]
 
@@ -132,3 +133,4 @@ async def test_transit_legs_generate_boarding_and_arrival_guidance() -> None:
 
     assert [item.modifier for item in response.routes[0].maneuvers] == ["board", "arrive"]
     assert response.routes[0].maneuvers[0].street_name == "9 Reading"
+    assert response.routes[0].fallback_reason == "rental_availability_unavailable"

@@ -39,6 +39,7 @@ interface Props {
   planning: boolean;
   locale: "he" | "en";
   onLocaleToggle: () => void;
+  mobilityCount?: number | null;
 }
 
 const PRIMARY_MODES: TravelMode[] = ["walk", "car", "transit", "bike"];
@@ -253,6 +254,13 @@ export function SearchPanel(props: Props) {
                 />
               ))}
             </ScrollView>
+            {props.mode === "rental_transit" ? (
+              <Text style={[styles.mobilityStatus, rtl && styles.rtlText]}>
+                {props.mobilityCount === null
+                  ? t("mobility.loading")
+                  : t("mobility.available", { count: props.mobilityCount })}
+              </Text>
+            ) : null}
             <Pressable
               accessibilityRole="button"
               style={({ pressed }) => [styles.planButton, pressed && styles.pressed]}
@@ -474,6 +482,12 @@ const styles = StyleSheet.create({
   chipSelected: { backgroundColor: "#EEF2FF", borderColor: colors.primary },
   chipText: { color: colors.ink, fontWeight: "600" },
   chipTextSelected: { color: colors.primaryDark },
+  mobilityStatus: {
+    color: colors.muted,
+    fontSize: 13,
+    lineHeight: 18,
+    paddingBottom: spacing.sm,
+  },
   planButton: {
     minHeight: 54,
     borderRadius: radius.md,
