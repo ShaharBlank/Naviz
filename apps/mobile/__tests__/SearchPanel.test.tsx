@@ -80,4 +80,16 @@ describe("SearchPanel localization and controls", () => {
       screen.getByText("12 vehicles nearby · tap a map dot to open the operator app"),
     ).toBeTruthy();
   });
+
+  it("distinguishes live vehicles from rental itinerary support", async () => {
+    await i18n.changeLanguage("en");
+    expect(i18n.t("fallback.rental_availability_unavailable")).toBe(
+      "Shared vehicles are nearby, but this route currently uses public transit only.",
+    );
+
+    await i18n.changeLanguage("he");
+    expect(i18n.t("fallback.rental_availability_unavailable")).toBe(
+      "כלים שיתופיים זמינים בקרבת מקום, אך המסלול הזה משתמש כרגע בתחבורה ציבורית בלבד.",
+    );
+  });
 });

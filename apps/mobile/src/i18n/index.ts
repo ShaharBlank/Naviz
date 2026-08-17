@@ -76,7 +76,7 @@ const resources = {
         no_material_signal_reduction: "המסלול המהיר נבחר; החלופות לא חסכו מספיק רמזורים.",
         shade_data_temporarily_unavailable: "לא ניתן היה לרענן את פרטי הצל; המסלול המהיר נבחר.",
         signal_data_temporarily_unavailable: "לא ניתן היה לרענן את ספירת הרמזורים; המסלול המהיר נבחר.",
-        rental_availability_unavailable: "לא נמצא כלי שיתופי זמין למסלול הזה; מוצג מסלול תחבורה ציבורית.",
+        rental_availability_unavailable: "כלים שיתופיים זמינים בקרבת מקום, אך המסלול הזה משתמש כרגע בתחבורה ציבורית בלבד.",
       },
       mobility: {
         title: "כלי שיתופי",
@@ -206,7 +206,7 @@ const resources = {
         no_material_signal_reduction: "Fastest route selected; alternatives did not avoid enough lights.",
         shade_data_temporarily_unavailable: "Shade details could not be refreshed; fastest route selected.",
         signal_data_temporarily_unavailable: "Traffic-light counts could not be refreshed; fastest route selected.",
-        rental_availability_unavailable: "No shared vehicle is available for this trip; showing public transit.",
+        rental_availability_unavailable: "Shared vehicles are nearby, but this route currently uses public transit only.",
       },
       mobility: {
         title: "Shared vehicle",
