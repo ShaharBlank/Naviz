@@ -3,11 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from threading import RLock
-from typing import Protocol
+from typing import Any, Protocol, cast
 from uuid import uuid4
 
 import httpx
-from jose import JWTError, jwt
+import jwt
+from jwt import InvalidTokenError, PyJWK, PyJWKError
 
 from .models import Favorite, HistoryEntry, Place, TravelMode, UserPreferences
 
@@ -113,7 +114,7 @@ class TokenVerifier:
         self._issuer = issuer.rstrip("/") if issuer else None
         self._audience = audience
         self._development = development
-        self._jwks: dict[str, object] | None = None
+        self._jwks: dict[str, Any] | None = None
 
     async def verify(self, authorization: str | None) -> Principal:
         if not authorization or not authorization.lower().startswith("bearer "):
@@ -129,18 +130,18 @@ class TokenVerifier:
             claims = jwt.decode(
                 token,
                 key,
-                algorithms=[str(header.get("alg", "RS256"))],
+                algorithms=[key.algorithm_name],
                 audience=self._audience,
                 issuer=self._issuer,
             )
-        except (JWTError, KeyError, ValueError, httpx.HTTPError) as exc:
+        except (InvalidTokenError, PyJWKError, KeyError, ValueError, httpx.HTTPError) as exc:
             raise AuthenticationError("The access token is invalid or expired") from exc
         subject = claims.get("sub")
         if not subject:
             raise AuthenticationError("The access token has no subject")
         return Principal(str(subject))
 
-    async def _signing_key(self, key_id: str) -> object:
+    async def _signing_key(self, key_id: str) -> PyJWK:
         if self._jwks is None:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 configuration = (
@@ -148,10 +149,11 @@ class TokenVerifier:
                     .raise_for_status()
                     .json()
                 )
-                self._jwks = (await client.get(configuration["jwks_uri"])).raise_for_status().json()
-        for key in self._jwks.get("keys", []):  # type: ignore[union-attr]
-            if key.get("kid") == key_id:
-                return key
+                payload = (await client.get(configuration["jwks_uri"])).raise_for_status().json()
+                self._jwks = cast(dict[str, Any], payload)
+        for raw_key in self._jwks.get("keys", []):
+            if isinstance(raw_key, dict) and raw_key.get("kid") == key_id:
+                return PyJWK.from_dict(raw_key)
         self._jwks = None
         raise AuthenticationError("The signing key is unavailable")
 

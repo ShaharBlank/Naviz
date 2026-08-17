@@ -17,7 +17,3 @@ addopts = "-ra --strict-markers"
 python_version = "3.12"
 strict = true
 packages = ["naviz_api", "naviz_data"]
-
-[[tool.mypy.overrides]]
-module = ["jose", "jose.*"]
-ignore_missing_imports = true
