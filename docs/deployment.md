@@ -11,8 +11,9 @@
 - Android build:
   <https://expo.dev/accounts/shaharblank/projects/naviz/builds/b63f768f-ad39-4cc0-89e5-36477836675f>
 
-Render is pinned to the matching immutable image tag
-`ghcr.io/shaharblank/naviz-api:703ff4e211f2c04e4f5e1132a54e2b1887061a80`.
+Render is pinned to an immutable Git-commit tag from
+`ghcr.io/shaharblank/naviz-api`; the active tag and data-bundle version are
+verified through the deployment event and `/v1/data/status` before release.
 
 The Android `preview` profile embeds `https://naviz-api.onrender.com` as
 `EXPO_PUBLIC_API_URL`. The public EAS artifact is temporary; the verified local
@@ -56,6 +57,20 @@ testing MapLibre/background navigation. Expo SDK 57 is the pinned mobile runtime
 `eas build --platform android --profile preview` produces an internal APK. The
 iOS development profile requires a valid signing team; simulator/personal-team
 and Android remain the zero-cost paths.
+
+For a zero-cost physical-iPhone preview, install Expo Go and run this from
+`apps/mobile`:
+
+```powershell
+$env:EXPO_PUBLIC_API_URL='https://naviz-api.onrender.com'
+npm run start:go
+```
+
+Scan the resulting QR with the iPhone camera or Expo Go. This path uses the
+Expo-supported Apple/Google map component while keeping Naviz routing, search,
+3D building pitch, route overlays, and foreground guidance. The standalone
+MapLibre renderer and background navigation still require a signed development
+or store build because Expo Go cannot add arbitrary native modules.
 
 The repository contains the public EAS project ID needed for reproducible builds,
 but does not contain signing keys, provider secrets, or a fake live-data URL.

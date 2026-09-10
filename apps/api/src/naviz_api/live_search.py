@@ -106,8 +106,12 @@ class PhotonPlaceSearch:
             "q": normalized,
             "limit": min(20, max(limit * 2, 8)),
             "bbox": ",".join(str(value) for value in effective_bbox),
-            "lang": language.value,
         }
+        # The public Photon service currently accepts only default, de, en and fr.
+        # Omitting `lang` preserves local OSM names (including Hebrew); sending
+        # `lang=he` makes every Hebrew search fail with HTTP 400.
+        if language is Locale.ENGLISH:
+            params["lang"] = language.value
         if proximity is not None:
             params.update(lat=proximity.latitude, lon=proximity.longitude)
         payload = await self._get("/api/", params)
@@ -126,14 +130,13 @@ class PhotonPlaceSearch:
         cached = self._cached(key)
         if cached is not None:
             return cast(Place | None, cached)
-        payload = await self._get(
-            "/reverse",
-            {
-                "lat": coordinate.latitude,
-                "lon": coordinate.longitude,
-                "lang": language.value,
-            },
-        )
+        params: dict[str, str | int | float] = {
+            "lat": coordinate.latitude,
+            "lon": coordinate.longitude,
+        }
+        if language is Locale.ENGLISH:
+            params["lang"] = language.value
+        payload = await self._get("/reverse", params)
         places = self._places(payload)
         result = places[0] if places else None
         await self._store(key, result)

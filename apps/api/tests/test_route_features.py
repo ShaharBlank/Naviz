@@ -74,6 +74,12 @@ async def test_sqlite_context_reads_only_route_corridor_features(tmp_path) -> No
     connection.execute("INSERT INTO signal_index VALUES (1, 34.7791, 34.7791, 32.0731, 32.0731)")
     connection.execute("INSERT INTO signals VALUES (2, 35.1, 31.8)")
     connection.execute("INSERT INTO signal_index VALUES (2, 35.1, 35.1, 31.8, 31.8)")
+    # Inside the route corridor's bounding box but over 260 m from the actual
+    # diagonal geometry. A bounding-box-only query would incorrectly include it.
+    connection.execute("INSERT INTO signals VALUES (3, 34.7818, 32.0707)")
+    connection.execute(
+        "INSERT INTO signal_index VALUES (3, 34.7818, 34.7818, 32.0707, 32.0707)"
+    )
     connection.commit()
     connection.close()
 

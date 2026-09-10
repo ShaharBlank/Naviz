@@ -9,18 +9,21 @@ transport, an immutable national building/traffic-signal bundle, and provider-
 scoped shared mobility with operator deep links. It never returns the deterministic
 CI fixture.
 
-The public Render service still reports API `0.2.0`, data bundle
-`metro-live-2026-08-16`, and metropolitan coverage. Nationwide API `0.3.0` is
-ready locally but is not deployed until the checksummed Israel OSM bundle is
-published at the pinned GitHub release URL and the new container is published.
+The public Render service reports API `0.3.0`, data bundle
+`israel-live-2026-08-16`, and nationwide Israel coverage. The checksummed OSM
+feature bundle is published as the `data-israel-2026-08-16` GitHub release and
+is verified before the container starts. Hebrew Photon queries use OSM's default
+localized names because Photon does not accept `lang=he`; English explicitly
+uses `lang=en`.
 
-The Android 0.5.0 universal preview APK was built for ARM64, ARMv7, x86, and
+The Android 0.5.1 universal preview APK was built for ARM64, ARMv7, x86, and
 x86_64 and cryptographically verified. Its x86_64 variant was exercised on an
-Android 16 Pixel emulator for permissions, fresh GPS acquisition, Hebrew RTL and
-English LTR, hosted search/routing, route comparison, walking and driving 3D
-guidance, direction-aware person/vehicle markers, synthetic GPS progress, and
-repeated live 2D/3D switching. Strict TypeScript, ESLint, Jest, Ruff, mypy,
-pytest, contract generation, and Expo dependency checks are release gates.
+Android 16 Pixel emulator for installation, startup, fresh GPS acquisition, and
+hosted nationwide search. Intercity route testing exposed and fixed a quadratic
+traffic-signal enrichment path: national-bundle feature lookup for the regression
+case now completes in 0.221 seconds after filtering to the real route corridor.
+Strict TypeScript, ESLint, Jest, Ruff, mypy, pytest, contract generation, and
+Expo dependency checks are release gates.
 
 The release audit has no critical npm findings. It still reports upstream
 high-severity advisories through Expo/Metro's local build tooling. npm's offered

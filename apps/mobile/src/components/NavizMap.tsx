@@ -25,7 +25,7 @@ const ISRAEL_CENTER: Coordinate = { latitude: 31.7683, longitude: 35.2137 };
 
 export type MapDisplayMode = "2d" | "3d";
 
-interface Props {
+export interface NavizMapProps {
   routes: RouteAlternative[];
   selectedRouteId: string | null;
   userCoordinate: Coordinate | null;
@@ -63,7 +63,7 @@ function NavizMapComponent({
   onShadowTimeShift,
   onShadowTimeReset,
   onMobilityVehiclePress,
-}: Props) {
+}: NavizMapProps) {
   const { i18n, t } = useTranslation();
   const selectedRoute =
     routes.find((route) => route.id === selectedRouteId) ?? routes[0] ?? null;
@@ -226,9 +226,17 @@ function NavizMapComponent({
               navigationTarget.longitude,
               navigationTarget.latitude,
             ]}
-            zoom={is3d ? navigationProfile.zoom3d : navigationProfile.zoom2d}
-            bearing={cameraBearing}
-            pitch={is3d ? navigationProfile.pitch : 0}
+            zoom={
+              navigationActive
+                ? is3d
+                  ? navigationProfile.zoom3d
+                  : navigationProfile.zoom2d
+                : is3d
+                  ? 15.7
+                  : 14.7
+            }
+            bearing={navigationActive ? cameraBearing : 0}
+            pitch={is3d ? (navigationActive ? navigationProfile.pitch : 48) : 0}
             padding={{ top: 112, right: 32, bottom: 186, left: 32 }}
             duration={420}
           />

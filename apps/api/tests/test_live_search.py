@@ -62,7 +62,7 @@ async def test_photon_search_accepts_national_results(
 
 
 @pytest.mark.asyncio
-async def test_photon_language_is_forwarded_and_separates_cache_entries(
+async def test_photon_uses_default_names_for_hebrew_and_separates_cache_entries(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     coordinate = Coordinate(latitude=31.7683, longitude=35.2137)
@@ -72,13 +72,13 @@ async def test_photon_language_is_forwarded_and_separates_cache_entries(
         data_version="israel-test",
         user_agent="Naviz/test",
     )
-    languages: list[str] = []
+    languages: list[str | None] = []
 
     async def fake_get(path: str, params: dict[str, str | int | float]) -> dict[str, Any]:
         del path
-        language = str(params["lang"])
+        language = str(params["lang"]) if "lang" in params else None
         languages.append(language)
-        name = "ירושלים" if language == "he" else "Jerusalem"
+        name = "ירושלים" if language is None else "Jerusalem"
         return _photon_payload(name, coordinate)
 
     monkeypatch.setattr(adapter, "_get", fake_get)
@@ -86,9 +86,34 @@ async def test_photon_language_is_forwarded_and_separates_cache_entries(
     hebrew = await adapter.search("Jerusalem", language=Locale.HEBREW)
     english = await adapter.search("Jerusalem", language=Locale.ENGLISH)
 
-    assert languages == ["he", "en"]
+    assert languages == [None, "en"]
     assert hebrew[0].name == "ירושלים"
     assert english[0].name == "Jerusalem"
+
+
+@pytest.mark.asyncio
+async def test_photon_reverse_omits_unsupported_hebrew_language(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    coordinate = Coordinate(latitude=31.7683, longitude=35.2137)
+    adapter = PhotonPlaceSearch(
+        "https://photon.example.test",
+        CoverageArea.from_tuple(Settings(_env_file=None).coverage_bbox),
+        data_version="israel-test",
+        user_agent="Naviz/test",
+    )
+
+    async def fake_get(path: str, params: dict[str, str | int | float]) -> dict[str, Any]:
+        assert path == "/reverse"
+        assert "lang" not in params
+        return _photon_payload("ירושלים", coordinate)
+
+    monkeypatch.setattr(adapter, "_get", fake_get)
+
+    result = await adapter.reverse(coordinate, language=Locale.HEBREW)
+
+    assert result is not None
+    assert result.name == "ירושלים"
 
 
 @pytest.mark.asyncio

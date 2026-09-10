@@ -60,10 +60,13 @@ $env:EXPO_PUBLIC_API_URL="http://YOUR-LAN-IP:8000"
 npx expo start --dev-client
 ```
 
-MapLibre and background navigation require an Expo development build; Expo Go is
-not a valid production test path. Run `eas init` once, then
-`npm run android:apk` for the internal Android APK configuration. iOS device
-builds require Apple signing.
+For a no-signing iPhone preview, run `npm run start:go` and scan the QR in Expo
+Go. That runtime uses the supported native Apple/Google map renderer while
+preserving Naviz search, planning, route comparison, 3D buildings, shadow
+overlays, and foreground guidance. The production MapLibre renderer and
+background navigation still require an Expo development build. Run `eas init`
+once, then `npm run android:apk` for the internal Android APK configuration. iOS
+device builds require Apple signing.
 
 The containerized local stack includes PostGIS:
 

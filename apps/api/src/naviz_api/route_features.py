@@ -284,7 +284,16 @@ class SqliteOsmRouteContext:
                 )
                 for longitude, latitude in rows:
                     x, y = _WGS84_TO_ITM.transform(float(longitude), float(latitude))
-                    signal_items.append(Point(x, y))
+                    signal = Point(x, y)
+                    # The RTree query deliberately starts with the corridor's
+                    # bounding box, but a long diagonal route can make that box
+                    # cover most of a region. Keep only signals close enough to
+                    # an actual alternative before clustering. Besides being the
+                    # correct semantic boundary, this prevents the clustering
+                    # pass from becoming quadratic in every signal between two
+                    # distant cities.
+                    if corridor.intersects(signal):
+                        signal_items.append(signal)
         finally:
             connection.close()
         return OsmRouteContext(

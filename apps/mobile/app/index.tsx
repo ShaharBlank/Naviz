@@ -27,7 +27,7 @@ import { NavigationHud } from "../src/components/NavigationHud";
 import {
   NavizMap,
   type MapDisplayMode,
-} from "../src/components/NavizMap";
+} from "../src/components/NavizMapHost";
 import { RouteCards } from "../src/components/RouteCards";
 import {
   SearchPanel,
@@ -85,6 +85,7 @@ export default function HomeScreen() {
   const rerouteAfter = useRef(0);
   const lastSpokenManeuver = useRef(-1);
   const planningAbort = useRef<AbortController | null>(null);
+  const centeredInitialLocation = useRef(false);
 
   const {
     locale,
@@ -178,6 +179,17 @@ export default function HomeScreen() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (
+      userCoordinate &&
+      !state.context.destination &&
+      !centeredInitialLocation.current
+    ) {
+      centeredInitialLocation.current = true;
+      setFollowing(true);
+    }
+  }, [state.context.destination, userCoordinate]);
 
   useEffect(() => {
     void getDataStatus().catch(async () => {
