@@ -3,9 +3,9 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import type { RouteAlternative } from "../api/types";
 import {
-  formatDistance,
   formatDuration,
-  formatTelAvivTime,
+  formatIsraelTime,
+  formatNavigationDistance,
   maneuverText,
 } from "../features/navigation/presenters";
 import { colors, radius, shadow, spacing } from "../theme/tokens";
@@ -33,10 +33,14 @@ export function NavigationHud(props: Props) {
     0,
     props.route.metrics.duration_s * (1 - Math.min(1, Math.max(0, props.progressFraction))),
   );
-  const arrival = formatTelAvivTime(props.route.arrival_at, props.locale);
+  const arrival = formatIsraelTime(props.route.arrival_at, props.locale);
+  const navigationDistance = formatNavigationDistance(remainingDistance);
   return (
     <>
-      <View style={[styles.instruction, props.rtl && styles.rowReverse]} accessibilityLiveRegion="polite">
+      <View
+        style={[styles.instruction, props.rtl && styles.rowReverse]}
+        accessibilityLiveRegion="polite"
+      >
         <View style={styles.turnIcon}>
           <Text style={styles.turnIconText}>{iconFor(maneuver?.modifier)}</Text>
         </View>
@@ -71,7 +75,7 @@ export function NavigationHud(props: Props) {
           <Text style={[styles.eta, props.rtl && styles.rtl]}>{arrival}</Text>
           <Text style={[styles.summary, props.rtl && styles.rtl]}>
             {t("metrics.minutes", { value: formatDuration(remainingDuration) })} ·{" "}
-            {t("metrics.kilometers", { value: formatDistance(remainingDistance) })}
+            {t(navigationDistance.key, { value: navigationDistance.value })}
           </Text>
         </View>
         <View style={[styles.actions, props.rtl && styles.rowReverse]}>
@@ -83,9 +87,13 @@ export function NavigationHud(props: Props) {
           >
             <Text style={styles.actionIcon}>{props.muted ? "🔇" : "🔊"}</Text>
           </Pressable>
-          <Pressable style={styles.stopButton} onPress={props.onStop} accessibilityRole="button">
+          <Pressable
+            style={styles.stopButton}
+            onPress={props.onStop}
+            accessibilityRole="button"
+            accessibilityLabel={t("stop")}
+          >
             <Text style={styles.stopText}>×</Text>
-            <Text style={styles.stopLabel}>{t("stop")}</Text>
           </Pressable>
         </View>
       </View>
@@ -113,28 +121,34 @@ const styles = StyleSheet.create({
     top: spacing.md,
     left: spacing.md,
     right: spacing.md,
-    minHeight: 112,
+    minHeight: 96,
     borderRadius: radius.lg,
     backgroundColor: colors.ink,
     flexDirection: "row",
     alignItems: "center",
-    padding: spacing.lg,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     ...shadow,
   },
   rowReverse: { flexDirection: "row-reverse" },
   turnIcon: {
-    width: 68,
-    height: 68,
+    width: 58,
+    height: 58,
     borderRadius: radius.md,
     backgroundColor: colors.primary,
     alignItems: "center",
     justifyContent: "center",
-    marginHorizontal: spacing.md,
+    marginHorizontal: spacing.sm,
   },
-  turnIconText: { color: colors.surface, fontSize: 40, fontWeight: "800" },
+  turnIconText: { color: colors.surface, fontSize: 34, fontWeight: "800" },
   instructionText: { flex: 1, minWidth: 0 },
   distance: { color: "#C7D2FE", fontSize: 14, fontWeight: "800" },
-  primary: { color: colors.surface, fontSize: 20, fontWeight: "900", lineHeight: 25 },
+  primary: {
+    color: colors.surface,
+    fontSize: 19,
+    fontWeight: "900",
+    lineHeight: 23,
+  },
   next: { color: "#CBD5E1", fontSize: 12, marginTop: spacing.xs },
   rtl: { textAlign: "right", writingDirection: "rtl" },
   bottomBar: {
@@ -142,22 +156,34 @@ const styles = StyleSheet.create({
     left: spacing.md,
     right: spacing.md,
     bottom: spacing.md,
-    minHeight: 94,
+    minHeight: 78,
     borderRadius: radius.lg,
     backgroundColor: colors.surface,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: spacing.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
     ...shadow,
   },
   tripSummary: { flex: 1, paddingHorizontal: spacing.xs },
-  eta: { color: colors.ink, fontSize: 27, fontWeight: "900" },
+  eta: { color: colors.ink, fontSize: 24, fontWeight: "900" },
   summary: { color: colors.muted, fontSize: 13, marginTop: spacing.xs },
   actions: { flexDirection: "row", alignItems: "center" },
-  actionButton: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
+  actionButton: {
+    width: 48,
+    height: 48,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   actionIcon: { fontSize: 20 },
-  stopButton: { minWidth: 66, minHeight: 58, alignItems: "center", justifyContent: "center" },
-  stopText: { color: colors.danger, fontSize: 28, lineHeight: 28 },
-  stopLabel: { color: colors.danger, fontSize: 10, fontWeight: "800" },
+  stopButton: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.pill,
+    backgroundColor: "#FEF2F2",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stopText: { color: colors.danger, fontSize: 30, lineHeight: 32 },
 });

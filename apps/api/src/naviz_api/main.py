@@ -29,6 +29,8 @@ from .models import (
     RoutePlanRequest,
     RoutePlanResponse,
     SearchResponse,
+    ShadowSceneRequest,
+    ShadowSceneResponse,
     UserPreferences,
 )
 from .services import Services, build_services
@@ -47,7 +49,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title="Naviz API",
     version=__version__,
-    summary="Tel Aviv shaded, multimodal, and low-signal navigation",
+    summary="Israel-wide shaded, multimodal, and low-signal navigation",
     lifespan=lifespan,
 )
 settings = get_settings()
@@ -179,6 +181,14 @@ async def reroute(
     services: Annotated[Services, Depends(get_services)],
 ) -> RoutePlanResponse:
     return await services.routes.plan(payload.to_plan_request(), request.state.request_id)
+
+
+@app.post("/v1/shadows/scene", response_model=ShadowSceneResponse, tags=["shade"])
+async def shadow_scene(
+    payload: ShadowSceneRequest,
+    services: Annotated[Services, Depends(get_services)],
+) -> ShadowSceneResponse:
+    return await services.shadow_scene(payload)
 
 
 @app.get("/v1/mobility/vehicles", response_model=MobilityResponse, tags=["mobility"])

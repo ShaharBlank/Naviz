@@ -7,7 +7,12 @@ def test_health_and_data_status() -> None:
         assert client.get("/health").json()["status"] == "ok"
         status = client.get("/v1/data/status")
         assert status.status_code == 200
-        assert status.json()["engine_profile"] == "compact"
+        payload = status.json()
+        assert payload["engine_profile"] == "compact"
+        assert payload["coverage"] == "Tel Aviv-Yafo test fixture"
+        assert payload["service_coverage_bbox"] == [34.15, 29.35, 35.95, 33.4]
+        assert payload["feature_coverage_bbox"] is None
+        assert payload["capabilities"]["street_routing"]["available"]
 
 
 def test_search_and_route_vertical_slice() -> None:
@@ -57,6 +62,22 @@ def test_road_route_exposes_a_total_traffic_light_count() -> None:
         assert routes[0]["label_key"] == "route.fastest"
         assert isinstance(routes[0]["metrics"]["traffic_signals"], int)
         assert routes[0]["metrics"]["traffic_signals"] >= 0
+
+
+def test_compact_profile_reports_shadow_scene_as_unavailable() -> None:
+    with TestClient(app) as client:
+        response = client.post(
+            "/v1/shadows/scene",
+            json={
+                "encoded_polyline": "_p~iF~ps|U_ulLnnqC",
+                "at": "2026-08-17T12:00:00+03:00",
+                "corridor_m": 180,
+            },
+        )
+
+        assert response.status_code == 200
+        assert response.json()["available"] is False
+        assert response.json()["model_version"] == "unavailable"
 
 
 def test_demo_account_sync_requires_explicit_token() -> None:

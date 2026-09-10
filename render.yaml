@@ -9,7 +9,7 @@ services:
       - key: NAVIZ_ENV
         value: production
       - key: NAVIZ_DATA_BUNDLE
-        value: metro-live-2026-08-16
+        value: israel-live-2026-08-16
       - key: NAVIZ_LIVE_PROVIDERS
         value: "true"
       - key: NAVIZ_VALHALLA_URL
@@ -18,15 +18,13 @@ services:
         value: https://api.transitous.org
       - key: NAVIZ_PHOTON_URL
         value: https://photon.komoot.io
-      - key: NAVIZ_OVERPASS_URL
-        value: https://overpass.private.coffee/api/interpreter
       - key: NAVIZ_FEATURE_BUNDLE_PATH
-        value: /app/apps/api/data/metro-osm-features.sqlite3
+        value: /app/apps/api/data/israel-osm-features.sqlite3
       - key: NAVIZ_GBFS_FEEDS
         value: Dott|https://gbfs.api.ridedott.com/public/v2/tel-aviv/gbfs.json|https://ridedott.com
       - key: NAVIZ_PROVIDER_CONTACT
         value: https://github.com/ShaharBlank/Naviz
       - key: NAVIZ_COVERAGE_BBOX
-        value: 34.69,31.94,34.93,32.20
+        value: 34.15,29.35,35.95,33.40
       - key: NAVIZ_ALLOWED_ORIGINS
         value: https://naviz.app

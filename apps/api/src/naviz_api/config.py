@@ -5,6 +5,8 @@ from functools import lru_cache
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+ISRAEL_COVERAGE_BBOX = (34.15, 29.35, 35.95, 33.40)
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
@@ -32,7 +34,7 @@ class Settings(BaseSettings):
     feature_bundle_path: str | None = None
     provider_contact: str = "https://github.com/ShaharBlank/Naviz"
     live_providers: bool = False
-    coverage_bbox: tuple[float, float, float, float] = (34.69, 31.94, 34.93, 32.20)
+    coverage_bbox: tuple[float, float, float, float] = ISRAEL_COVERAGE_BBOX
     route_ttl_seconds: int = 900
     provider_cache_seconds: int = 300
     gbfs_ttl_seconds: int = 30

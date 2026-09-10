@@ -1,4 +1,4 @@
-import { fireEvent, render } from "@testing-library/react-native";
+import { act, fireEvent, render } from "@testing-library/react-native";
 
 import type { RouteAlternative } from "../src/api/types";
 import { RouteCards } from "../src/components/RouteCards";
@@ -69,8 +69,75 @@ describe("RouteCards comparison", () => {
     expect(screen.getByText("12 lights")).toBeTruthy();
     expect(screen.getByText("3 lights")).toBeTruthy();
     expect(screen.getByText("9 fewer lights")).toBeTruthy();
+    expect(screen.getByText("+2 min vs fastest")).toBeTruthy();
+    expect(screen.getByLabelText(/Fewer lights route.*3 lights/)).toBeTruthy();
 
     fireEvent.press(screen.getByText("Fewer lights"));
     expect(onSelect).toHaveBeenCalledWith(fewerLights);
+  });
+
+  it("blocks a transition ghost tap before enabling navigation", async () => {
+    jest.useFakeTimers();
+    const onStart = jest.fn();
+    const fastest = route("fast", "route.fastest", 600, 4);
+    const screen = render(
+      <RouteCards
+        routes={[fastest]}
+        selectedRouteId={fastest.id}
+        onSelect={jest.fn()}
+        onStart={onStart}
+        onBack={jest.fn()}
+        rtl={false}
+      />,
+    );
+
+    fireEvent.press(screen.getByText("Start"));
+    expect(onStart).not.toHaveBeenCalled();
+    act(() => jest.advanceTimersByTime(650));
+    fireEvent.press(screen.getByText("Start"));
+    expect(onStart).toHaveBeenCalledTimes(1);
+    jest.useRealTimers();
+  });
+
+  it("describes a zero-exposure route without claiming nighttime shade", async () => {
+    await i18n.changeLanguage("en");
+    const noSun = route("night", "route.fastest", 600, 0);
+    noSun.metrics.shade_fraction = 1;
+    noSun.metrics.sun_exposure_minutes = 0;
+    const screen = render(
+      <RouteCards
+        routes={[noSun]}
+        selectedRouteId={noSun.id}
+        onSelect={jest.fn()}
+        onStart={jest.fn()}
+        onBack={jest.fn()}
+        rtl={false}
+      />,
+    );
+
+    expect(screen.getByText("No direct sun exposure")).toBeTruthy();
+    expect(screen.queryByText("100% shade")).toBeNull();
+  });
+
+  it("does not clutter a single fastest result with a non-actionable fallback", async () => {
+    await i18n.changeLanguage("en");
+    const fastest = route("fast", "route.fastest", 600, 4);
+    fastest.fallback_reason = "no_material_signal_reduction";
+    const screen = render(
+      <RouteCards
+        routes={[fastest]}
+        selectedRouteId={fastest.id}
+        onSelect={jest.fn()}
+        onStart={jest.fn()}
+        onBack={jest.fn()}
+        rtl={false}
+      />,
+    );
+
+    expect(
+      screen.queryByText(
+        "Fastest route selected; alternatives did not avoid enough lights.",
+      ),
+    ).toBeNull();
   });
 });

@@ -26,8 +26,6 @@ const defaults = {
   onToggleFavorite: jest.fn(),
   mode: "walk" as const,
   onModeChange: jest.fn(),
-  preference: "balanced_shade" as const,
-  onPreferenceChange: jest.fn(),
   onPlan: jest.fn(),
   onCancel: jest.fn(),
   onUseCurrentLocation: jest.fn(),
@@ -59,7 +57,10 @@ describe("SearchPanel localization and controls", () => {
       />,
     );
     expect(screen.getByLabelText("שמירה למועדפים")).toBeTruthy();
-    expect(screen.getByText("צל מאוזן")).toBeTruthy();
+    expect(screen.getByText("השוואת מסלולים")).toBeTruthy();
+    expect(screen.queryByText(i18n.t("tagline"))).toBeNull();
+    expect(screen.queryByText(i18n.t("allRoutesCalculated"))).toBeNull();
+    expect(screen.queryByText("צל מאוזן")).toBeNull();
   });
 
   it("shows live shared-vehicle availability for rental transit", async () => {
@@ -71,7 +72,6 @@ describe("SearchPanel localization and controls", () => {
         query="Rabin Square"
         selectedDestination={rabin}
         mode="rental_transit"
-        preference="fewer_transfers"
         mobilityCount={12}
       />,
     );
@@ -119,7 +119,6 @@ describe("SearchPanel localization and controls", () => {
         query="Rabin Square"
         selectedDestination={rabin}
         mode="bike_transit"
-        preference="fewer_transfers"
       />,
     );
     expect(screen.getByLabelText("Change travel mode")).toBeTruthy();

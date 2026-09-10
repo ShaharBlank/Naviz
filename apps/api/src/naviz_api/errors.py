@@ -12,7 +12,7 @@ class NavizError(Exception):
 class OutsideCoverageError(NavizError):
     def __init__(self) -> None:
         super().__init__(
-            "Naviz currently routes within the Tel Aviv metropolitan coverage area.",
+            "Naviz currently routes within Israel's supported coverage area.",
             code="outside_coverage",
             status_code=422,
         )

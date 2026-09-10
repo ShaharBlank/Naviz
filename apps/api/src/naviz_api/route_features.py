@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import math
 import sqlite3
 import struct
@@ -18,6 +19,7 @@ from pyproj import Transformer
 from shapely import affinity
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 from shapely.geometry.base import BaseGeometry
+from shapely.ops import transform as transform_geometry
 from shapely.ops import unary_union
 
 from .geometry import decode_polyline, haversine_m
@@ -28,11 +30,18 @@ from .models import (
     RoutePlanRequest,
     RoutePreference,
     SegmentAnnotation,
+    ShadowPolygon,
+    ShadowSceneRequest,
+    ShadowSceneResponse,
     TravelMode,
 )
 
 _WGS84_TO_ITM = Transformer.from_crs("EPSG:4326", "EPSG:2039", always_xy=True)
+_ITM_TO_WGS84 = Transformer.from_crs("EPSG:2039", "EPSG:4326", always_xy=True)
 _ROAD_MODES = {TravelMode.CAR, TravelMode.MOTORCYCLE, TravelMode.TRUCK}
+_ROUTE_CONTEXT_CORRIDOR_M = 260.0
+_MAX_SHADOW_SCENE_ROUTE_M = 6_000.0
+OUTSIDE_VALIDATED_FEATURE_COVERAGE = "outside_validated_feature_coverage"
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,12 +56,19 @@ class OsmRouteContext:
     buildings: tuple[Building, ...] = ()
     traffic_signals: tuple[Point, ...] = ()
     complete: bool = True
+    incomplete_reason: str | None = None
 
 
 @dataclass(slots=True)
 class _ContextCacheEntry:
     expires_at: float
     context: OsmRouteContext
+
+
+@dataclass(slots=True)
+class _ShadowSceneCacheEntry:
+    expires_at: float
+    response: ShadowSceneResponse
 
 
 class RouteContextPort(Protocol):
@@ -77,6 +93,13 @@ class SqliteOsmRouteContext:
         self._database_path = Path(database_path)
         if not self._database_path.is_file():
             raise FileNotFoundError(self._database_path)
+        self._coverage_bbox = self._read_coverage_bbox()
+        self._scene_cache: dict[tuple[object, ...], _ShadowSceneCacheEntry] = {}
+        self._scene_lock = asyncio.Lock()
+
+    @property
+    def coverage_bbox(self) -> tuple[float, float, float, float]:
+        return self._coverage_bbox
 
     async def context(
         self,
@@ -85,18 +108,13 @@ class SqliteOsmRouteContext:
         buildings: bool,
         traffic_signals: bool,
     ) -> OsmRouteContext:
-        bounds = _route_bounds(routes)
-        corridor = unary_union(
-            [
-                LineString(
-                    [
-                        _WGS84_TO_ITM.transform(point.longitude, point.latitude)
-                        for point in decode_polyline(route.encoded_polyline)
-                    ]
-                ).buffer(260)
-                for route in routes
-            ]
-        )
+        corridor = _route_corridor(routes)
+        bounds = _projected_bounds_to_wgs84(corridor.bounds)
+        if not _bbox_contains(self._coverage_bbox, bounds):
+            return OsmRouteContext(
+                complete=False,
+                incomplete_reason=OUTSIDE_VALIDATED_FEATURE_COVERAGE,
+            )
         return await asyncio.to_thread(
             self._load,
             bounds,
@@ -104,6 +122,124 @@ class SqliteOsmRouteContext:
             buildings=buildings,
             traffic_signals=traffic_signals,
         )
+
+    async def shadow_scene(self, request: ShadowSceneRequest) -> ShadowSceneResponse:
+        """Project bounded 2.5-D building shadows around one route corridor."""
+        minute = request.at.replace(second=0, microsecond=0)
+        key = (request.encoded_polyline, minute, round(request.corridor_m, 1))
+        cached = self._scene_cache.get(key)
+        if cached is not None and cached.expires_at > monotonic():
+            return cached.response
+        response = await asyncio.to_thread(self._build_shadow_scene, request)
+        async with self._scene_lock:
+            if len(self._scene_cache) >= 24:
+                oldest = min(
+                    self._scene_cache,
+                    key=lambda item: self._scene_cache[item].expires_at,
+                )
+                self._scene_cache.pop(oldest, None)
+            self._scene_cache[key] = _ShadowSceneCacheEntry(
+                expires_at=monotonic() + 300,
+                response=response,
+            )
+        return response
+
+    def _build_shadow_scene(self, request: ShadowSceneRequest) -> ShadowSceneResponse:
+        points = decode_polyline(request.encoded_polyline)
+        if len(points) < 2:
+            raise ValueError("Shadow scene requires a route with at least two points")
+        line = LineString(
+            [
+                _WGS84_TO_ITM.transform(point.longitude, point.latitude)
+                for point in points
+            ]
+        )
+        visible_corridor = line.buffer(request.corridor_m)
+        # A building outside the visible corridor can still cast into it.
+        source_corridor = visible_corridor.buffer(250)
+        bounds = _projected_bounds_to_wgs84(source_corridor.bounds)
+        observer = Observer(latitude=points[0].latitude, longitude=points[0].longitude)
+        sun_azimuth = float(azimuth(observer, request.at))
+        sun_elevation = float(elevation(observer, request.at))
+        if line.length > _MAX_SHADOW_SCENE_ROUTE_M:
+            return ShadowSceneResponse(
+                available=False,
+                at=request.at,
+                solar_azimuth_degrees=round(sun_azimuth, 3),
+                solar_elevation_degrees=round(sun_elevation, 3),
+                coverage_bbox=self._coverage_bbox,
+                model_version="osm-2.5d-v1",
+                attribution=["© OpenStreetMap contributors · ODbL"],
+                warning=(
+                    "Shadow scenes are limited to a six-kilometre viewing window; "
+                    "request the corridor around the current route position."
+                ),
+            )
+        if not _bbox_contains(self._coverage_bbox, bounds):
+            return ShadowSceneResponse(
+                available=False,
+                at=request.at,
+                solar_azimuth_degrees=round(sun_azimuth, 3),
+                solar_elevation_degrees=round(sun_elevation, 3),
+                coverage_bbox=self._coverage_bbox,
+                model_version="osm-2.5d-v1",
+                attribution=["© OpenStreetMap contributors · ODbL"],
+                warning="Route corridor is outside validated building coverage.",
+            )
+        context = self._load(
+            bounds,
+            source_corridor,
+            buildings=True,
+            traffic_signals=False,
+        )
+        shadows, high_shadows, _, sun_azimuth, sun_elevation = _shadow_unions(
+            context.buildings,
+            request.at,
+            points[0],
+        )
+        clipped = shadows.intersection(visible_corridor).simplify(
+            0.65, preserve_topology=True
+        )
+        clipped_high = high_shadows.intersection(visible_corridor).simplify(
+            0.65, preserve_topology=True
+        )
+        return ShadowSceneResponse(
+            available=True,
+            at=request.at,
+            solar_azimuth_degrees=round(sun_azimuth, 3),
+            solar_elevation_degrees=round(sun_elevation, 3),
+            shadows=_shadow_polygons(clipped),
+            high_confidence_shadows=_shadow_polygons(clipped_high),
+            coverage_bbox=self._coverage_bbox,
+            model_version="osm-2.5d-v1",
+            attribution=["© OpenStreetMap contributors · ODbL"],
+        )
+
+    def _read_coverage_bbox(self) -> tuple[float, float, float, float]:
+        connection = sqlite3.connect(f"file:{self._database_path}?mode=ro", uri=True)
+        try:
+            row = connection.execute(
+                "SELECT value FROM metadata WHERE key = 'coverage_bbox'"
+            ).fetchone()
+        except sqlite3.Error as exc:
+            raise ValueError("Feature bundle is missing readable coverage metadata") from exc
+        finally:
+            connection.close()
+        if row is None:
+            raise ValueError("Feature bundle metadata is missing coverage_bbox")
+        try:
+            raw = json.loads(str(row[0]))
+            values = tuple(float(value) for value in raw)
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            raise ValueError("Feature bundle coverage_bbox is malformed") from exc
+        if len(values) != 4:
+            raise ValueError("Feature bundle coverage_bbox must contain four coordinates")
+        west, south, east, north = values
+        if not all(math.isfinite(value) for value in values):
+            raise ValueError("Feature bundle coverage_bbox must contain finite coordinates")
+        if not (-180 <= west < east <= 180 and -90 <= south < north <= 90):
+            raise ValueError("Feature bundle coverage_bbox is outside valid coordinate bounds")
+        return west, south, east, north
 
     def _load(
         self,
@@ -281,20 +417,27 @@ class RouteFeatureAnalyzer:
         context: OsmRouteContext,
     ) -> list[RouteAlternative]:
         if not context.complete:
+            fallback_reason, warning = _feature_unavailable_reason("shade", context)
             if request.include_comparisons or request.preference != RoutePreference.FASTEST:
                 fastest = min(routes, key=lambda route: route.metrics.duration_s)
                 return [
-                    fastest.model_copy(
-                        update={
-                            "label_key": "route.fastest",
-                            "fallback_reason": "shade_data_temporarily_unavailable",
-                        }
+                    _mark_feature_unavailable(
+                        fastest.model_copy(update={"label_key": "route.fastest"}),
+                        fallback_reason=fallback_reason,
+                        warning=warning,
                     )
                 ]
-            return routes
+            return [
+                _mark_feature_unavailable(
+                    route,
+                    fallback_reason=fallback_reason,
+                    warning=warning,
+                )
+                for route in routes
+            ]
         departure = routes[0].departure_at
         center = decode_polyline(routes[0].encoded_polyline)[0]
-        shadows, high_shadows, sun_up = _shadow_unions(
+        shadows, high_shadows, sun_up, _, _ = _shadow_unions(
             context.buildings,
             departure,
             center,
@@ -390,17 +533,24 @@ class RouteFeatureAnalyzer:
         context: OsmRouteContext,
     ) -> list[RouteAlternative]:
         if not context.complete:
+            fallback_reason, warning = _feature_unavailable_reason("signal", context)
             if request.include_comparisons or request.preference == RoutePreference.FEWER_LIGHTS:
                 fastest = min(routes, key=lambda route: route.metrics.duration_s)
                 return [
-                    fastest.model_copy(
-                        update={
-                            "label_key": "route.fastest",
-                            "fallback_reason": "signal_data_temporarily_unavailable",
-                        }
+                    _mark_feature_unavailable(
+                        fastest.model_copy(update={"label_key": "route.fastest"}),
+                        fallback_reason=fallback_reason,
+                        warning=warning,
                     )
                 ]
-            return routes
+            return [
+                _mark_feature_unavailable(
+                    route,
+                    fallback_reason=fallback_reason,
+                    warning=warning,
+                )
+                for route in routes
+            ]
         enriched = [_annotate_signals(route, context.traffic_signals) for route in routes]
         fastest = min(enriched, key=lambda route: route.metrics.duration_s)
         if not request.include_comparisons and request.preference != RoutePreference.FEWER_LIGHTS:
@@ -452,13 +602,13 @@ def _shadow_unions(
     buildings: tuple[Building, ...],
     when: datetime,
     coordinate: Coordinate,
-) -> tuple[BaseGeometry, BaseGeometry, bool]:
+) -> tuple[BaseGeometry, BaseGeometry, bool, float, float]:
     observer = Observer(latitude=coordinate.latitude, longitude=coordinate.longitude)
     sun_elevation = float(elevation(observer, when))
+    sun_azimuth = float(azimuth(observer, when))
     if sun_elevation <= 0:
         empty = Polygon()
-        return empty, empty, False
-    sun_azimuth = float(azimuth(observer, when))
+        return empty, empty, False, sun_azimuth, sun_elevation
     all_shadows = []
     high_shadows = []
     for building in buildings:
@@ -476,7 +626,38 @@ def _shadow_unions(
         unary_union(all_shadows) if all_shadows else Polygon(),
         unary_union(high_shadows) if high_shadows else Polygon(),
         True,
+        sun_azimuth,
+        sun_elevation,
     )
+
+
+def _shadow_polygons(geometry: BaseGeometry) -> list[ShadowPolygon]:
+    if geometry.is_empty:
+        return []
+    converted = transform_geometry(_ITM_TO_WGS84.transform, geometry)
+    if isinstance(converted, Polygon):
+        polygons = [converted]
+    elif isinstance(converted, MultiPolygon):
+        polygons = list(converted.geoms)
+    else:
+        polygons = [
+            item
+            for item in getattr(converted, "geoms", ())
+            if isinstance(item, Polygon)
+        ]
+    result: list[ShadowPolygon] = []
+    for polygon in sorted(polygons, key=lambda item: item.area, reverse=True)[:400]:
+        rings = [
+            [
+                Coordinate(latitude=float(latitude), longitude=float(longitude))
+                for longitude, latitude in ring.coords
+            ]
+            for ring in [polygon.exterior, *polygon.interiors]
+            if len(ring.coords) >= 4
+        ]
+        if rings:
+            result.append(ShadowPolygon(rings=rings))
+    return result
 
 
 def _shadow_for_geometry(geometry: Polygon | MultiPolygon, dx: float, dy: float) -> BaseGeometry:
@@ -578,6 +759,95 @@ def _route_bounds(routes: list[RouteAlternative]) -> tuple[float, float, float, 
         min(route.bbox[1] for route in routes) - 0.001,
         max(route.bbox[2] for route in routes) + 0.001,
         max(route.bbox[3] for route in routes) + 0.001,
+    )
+
+
+def _route_corridor(routes: list[RouteAlternative]) -> BaseGeometry:
+    lines = []
+    for route in routes:
+        coordinates = [
+            _WGS84_TO_ITM.transform(point.longitude, point.latitude)
+            for point in decode_polyline(route.encoded_polyline)
+        ]
+        if len(coordinates) >= 2:
+            lines.append(LineString(coordinates).buffer(_ROUTE_CONTEXT_CORRIDOR_M))
+    if not lines:
+        raise ValueError("Route context requires at least one route with valid geometry")
+    return unary_union(lines)
+
+
+def _projected_bounds_to_wgs84(
+    bounds: tuple[float, float, float, float],
+) -> tuple[float, float, float, float]:
+    minimum_x, minimum_y, maximum_x, maximum_y = bounds
+    coordinates = (
+        _ITM_TO_WGS84.transform(minimum_x, minimum_y),
+        _ITM_TO_WGS84.transform(minimum_x, maximum_y),
+        _ITM_TO_WGS84.transform(maximum_x, minimum_y),
+        _ITM_TO_WGS84.transform(maximum_x, maximum_y),
+    )
+    longitudes = [coordinate[0] for coordinate in coordinates]
+    latitudes = [coordinate[1] for coordinate in coordinates]
+    return min(longitudes), min(latitudes), max(longitudes), max(latitudes)
+
+
+def _bbox_contains(
+    coverage: tuple[float, float, float, float],
+    required: tuple[float, float, float, float],
+) -> bool:
+    west, south, east, north = coverage
+    required_west, required_south, required_east, required_north = required
+    return (
+        west <= required_west
+        and south <= required_south
+        and east >= required_east
+        and north >= required_north
+    )
+
+
+def _feature_unavailable_reason(
+    feature: str, context: OsmRouteContext
+) -> tuple[str, str]:
+    if context.incomplete_reason == OUTSIDE_VALIDATED_FEATURE_COVERAGE:
+        if feature == "shade":
+            return (
+                "shade_outside_validated_coverage",
+                "Shade metrics are unavailable outside validated feature coverage.",
+            )
+        return (
+            "signal_outside_validated_coverage",
+            "Traffic-signal metrics are unavailable outside validated feature coverage.",
+        )
+    if feature == "shade":
+        return (
+            "shade_data_temporarily_unavailable",
+            "Shade metrics are temporarily unavailable.",
+        )
+    return (
+        "signal_data_temporarily_unavailable",
+        "Traffic-signal metrics are temporarily unavailable.",
+    )
+
+
+def _mark_feature_unavailable(
+    route: RouteAlternative,
+    *,
+    fallback_reason: str,
+    warning: str,
+) -> RouteAlternative:
+    route_warnings = list(dict.fromkeys([*route.warnings, warning]))
+    quality_warnings = list(dict.fromkeys([*route.quality.warnings, warning]))
+    return route.model_copy(
+        update={
+            "fallback_reason": fallback_reason,
+            "warnings": route_warnings,
+            "quality": route.quality.model_copy(
+                update={
+                    "confidence": DataConfidence.LOW,
+                    "warnings": quality_warnings,
+                }
+            ),
+        }
     )
 
 

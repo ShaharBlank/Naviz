@@ -5,25 +5,29 @@ import * as Location from "expo-location";
 import * as Speech from "expo-speech";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Linking, StyleSheet, View } from "react-native";
+import { Alert, BackHandler, Linking, StyleSheet, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import {
   ApiError,
   getDataStatus,
   getMobilityVehicles,
+  getShadowScene,
   planRoute,
   reroute,
   searchPlaces,
 } from "../src/api/client";
-import { decodePolyline } from "../src/api/polyline";
+import { decodePolyline, shadowWindowPolyline } from "../src/api/polyline";
 import type {
   Coordinate,
   MobilityVehicle,
   RoutePlanRequest,
 } from "../src/api/types";
 import { NavigationHud } from "../src/components/NavigationHud";
-import { NavizMap } from "../src/components/NavizMap";
+import {
+  NavizMap,
+  type MapDisplayMode,
+} from "../src/components/NavizMap";
 import { RouteCards } from "../src/components/RouteCards";
 import {
   SearchPanel,
@@ -46,8 +50,13 @@ import {
   loadCachedRoute,
 } from "../src/features/navigation/routeCache";
 
-const METRO_BBOX = { west: 34.69, south: 31.94, east: 34.93, north: 32.2 };
-const TEL_AVIV_CENTER = { latitude: 32.0733, longitude: 34.7799 };
+const ISRAEL_SERVICE_BBOX = {
+  west: 34.15,
+  south: 29.35,
+  east: 35.95,
+  north: 33.4,
+};
+const ISRAEL_CENTER = { latitude: 31.7683, longitude: 35.2137 };
 
 export default function HomeScreen() {
   const { t } = useTranslation();
@@ -56,6 +65,9 @@ export default function HomeScreen() {
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [origin, setOrigin] = useState<Coordinate | null>(null);
   const [userCoordinate, setUserCoordinate] = useState<Coordinate | null>(null);
+  const [userHeadingDegrees, setUserHeadingDegrees] = useState<number | null>(
+    null,
+  );
   const [locationStatus, setLocationStatus] = useState<LocationStatus>("idle");
   const [following, setFollowing] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -65,6 +77,9 @@ export default function HomeScreen() {
   );
   const [progressFraction, setProgressFraction] = useState(0);
   const [offlineContinuation, setOfflineContinuation] = useState(false);
+  const [mapDisplayMode, setMapDisplayMode] = useState<MapDisplayMode>("2d");
+  const [shadowTimeOffsetMinutes, setShadowTimeOffsetMinutes] = useState(0);
+  const [shadowClock, setShadowClock] = useState(() => new Date());
   const tracker = useRef<ProgressTracker | null>(null);
   const rerouting = useRef(false);
   const rerouteAfter = useRef(0);
@@ -74,11 +89,9 @@ export default function HomeScreen() {
   const {
     locale,
     mode,
-    preference,
     vehicleKind,
     setLocale,
     setMode,
-    setPreference,
     addRecent,
     recent,
     favorites,
@@ -112,6 +125,7 @@ export default function HomeScreen() {
             lastKnown,
             setOrigin,
             setUserCoordinate,
+            setUserHeadingDegrees,
             setLocationStatus,
           );
         try {
@@ -125,6 +139,7 @@ export default function HomeScreen() {
             current,
             setOrigin,
             setUserCoordinate,
+            setUserHeadingDegrees,
             setLocationStatus,
           );
           return toCoordinate(current);
@@ -154,6 +169,7 @@ export default function HomeScreen() {
           lastKnown,
           setOrigin,
           setUserCoordinate,
+          setUserHeadingDegrees,
           setLocationStatus,
         );
       }
@@ -200,7 +216,7 @@ export default function HomeScreen() {
     retry: 1,
   });
 
-  const mobilityCenter = userCoordinate ?? origin ?? TEL_AVIV_CENTER;
+  const mobilityCenter = userCoordinate ?? origin ?? ISRAEL_CENTER;
   const mobility = useQuery({
     queryKey: [
       "mobility",
@@ -236,7 +252,7 @@ export default function HomeScreen() {
       depart_at: new Date().toISOString(),
       locale,
       mode,
-      preference,
+      preference: "fastest",
       include_comparisons: true,
       vehicle: {
         kind: vehicleKind,
@@ -254,7 +270,7 @@ export default function HomeScreen() {
         allow_low_confidence_crossings: false,
       },
     }),
-    [locale, mode, preference, state.context.destination, vehicleKind],
+    [locale, mode, state.context.destination, vehicleKind],
   );
 
   const routeMutation = useMutation({
@@ -276,6 +292,7 @@ export default function HomeScreen() {
       setProgressFraction(0);
       setFollowing(false);
       setOfflineContinuation(false);
+      setShadowTimeOffsetMinutes(0);
     },
     onError: (error) => {
       send({
@@ -353,6 +370,54 @@ export default function HomeScreen() {
   const navigating = state.matches("navigating");
   const recalculating = state.matches("recalculating");
   const offline = state.matches("offline");
+  const active =
+    navigating || recalculating || offline || state.matches("arrived");
+  useEffect(() => {
+    if (mapDisplayMode !== "3d" || !active) return undefined;
+    const timer = setInterval(() => setShadowClock(new Date()), 60_000);
+    return () => clearInterval(timer);
+  }, [active, mapDisplayMode]);
+  const shadowAt = selectedRoute
+    ? new Date(
+        (active
+          ? shadowClock.getTime()
+          : new Date(selectedRoute.departure_at).getTime()) +
+          shadowTimeOffsetMinutes * 60_000,
+      )
+    : null;
+  const shadowPolyline = useMemo(() => {
+    if (!selectedRoute) return null;
+    const firstCoordinate = decodePolyline(selectedRoute.encoded_polyline)[0];
+    return shadowWindowPolyline(
+      selectedRoute.encoded_polyline,
+      userCoordinate ?? firstCoordinate ?? ISRAEL_CENTER,
+    );
+  }, [selectedRoute, userCoordinate]);
+  const shadowScene = useQuery({
+    queryKey: [
+      "shadow-scene",
+      selectedRoute?.id,
+      shadowPolyline,
+      shadowAt?.toISOString(),
+    ],
+    queryFn: ({ signal }) =>
+      getShadowScene(
+        {
+          encoded_polyline: shadowPolyline!,
+          at: shadowAt!.toISOString(),
+          corridor_m: 180,
+        },
+        signal,
+      ),
+    enabled:
+      mapDisplayMode === "3d" &&
+      selectedRoute !== null &&
+      shadowPolyline !== null &&
+      shadowAt !== null &&
+      !offline,
+    retry: 1,
+    staleTime: active ? 55_000 : 300_000,
+  });
 
   useEffect(() => {
     if (!navigating && !recalculating && !offline) return;
@@ -367,6 +432,7 @@ export default function HomeScreen() {
       (location) => {
         const coordinate = toCoordinate(location);
         setUserCoordinate(coordinate);
+        setUserHeadingDegrees(location.coords.heading);
         setOrigin(coordinate);
         setLocationStatus("ready");
         const progress = tracker.current?.update({
@@ -454,7 +520,7 @@ export default function HomeScreen() {
       Alert.alert(t("error.title"), t("error.locationUnavailable"));
       return;
     }
-    if (!insideMetroCoverage(currentOrigin)) {
+    if (!insideIsraelServiceArea(currentOrigin)) {
       Alert.alert(t("error.title"), t("error.outsideCoverage"));
       return;
     }
@@ -462,12 +528,12 @@ export default function HomeScreen() {
     routeMutation.mutate(buildRequest(currentOrigin));
   };
 
-  const cancelPlanning = () => {
+  const cancelPlanning = useCallback(() => {
     planningAbort.current?.abort();
     planningAbort.current = null;
     routeMutation.reset();
     send({ type: "STOP" });
-  };
+  }, [routeMutation, send]);
 
   const start = async () => {
     if (!selectedRoute) return;
@@ -481,11 +547,14 @@ export default function HomeScreen() {
       Alert.alert(t("error.title"), t("error.locationUnavailable"));
       return;
     }
+    await cacheRoute(selectedRoute);
     const points = decodePolyline(selectedRoute.encoded_polyline);
     tracker.current = points.length >= 2 ? new ProgressTracker(points) : null;
     lastSpokenManeuver.current = -1;
     setRemainingDistanceM(selectedRoute.metrics.distance_m);
     setProgressFraction(0);
+    setShadowTimeOffsetMinutes(0);
+    setMapDisplayMode("3d");
     let backgroundGranted = false;
     try {
       backgroundGranted = await requestBackgroundNavigationPermission();
@@ -511,34 +580,71 @@ export default function HomeScreen() {
     send({ type: "STOP" });
   };
 
-  const resetPreview = () => {
+  const planning = state.matches("planning");
+  const resetPreview = useCallback(() => {
     setFollowing(false);
     setQuery("");
     setRemainingDistanceM(null);
     send({ type: "STOP" });
-  };
+  }, [send]);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => {
+        if (planning) {
+          cancelPlanning();
+          return true;
+        }
+        if (
+          state.matches("preview") ||
+          state.matches("permissionDenied") ||
+          state.matches("error")
+        ) {
+          resetPreview();
+          return true;
+        }
+        if (active) {
+          setFollowing(false);
+          return true;
+        }
+        return false;
+      },
+    );
+    return () => subscription.remove();
+  }, [active, cancelPlanning, planning, resetPreview, state]);
 
   const centerOnUser = async () => {
     const coordinate = userCoordinate ?? (await locateUser(true));
     if (coordinate) setFollowing(true);
   };
 
-  const planning = state.matches("planning");
-  const active =
-    navigating || recalculating || offline || state.matches("arrived");
-
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
       <View style={styles.container}>
         <NavizMap
-          route={selectedRoute}
+          routes={state.context.routes}
+          selectedRouteId={state.context.selectedRouteId}
           userCoordinate={userCoordinate}
+          userHeadingDegrees={userHeadingDegrees}
+          displayMode={mapDisplayMode}
+          shadowScene={shadowScene.data ?? null}
+          shadowLoading={shadowScene.isFetching}
           mobilityVehicles={
             mode === "rental_transit" ? (mobility.data?.vehicles ?? []) : []
           }
           following={following}
+          navigationActive={active}
+          travelMode={mode}
           onRecenter={() => void centerOnUser()}
           onOverview={() => setFollowing(false)}
+          onDisplayModeChange={setMapDisplayMode}
+          onShadowTimeShift={(minutes) =>
+            setShadowTimeOffsetMinutes((value) =>
+              Math.max(-360, Math.min(360, value + minutes)),
+            )
+          }
+          onShadowTimeReset={() => setShadowTimeOffsetMinutes(0)}
           onMobilityVehiclePress={(vehicle) =>
             void openMobilityVehicle(vehicle)
           }
@@ -563,8 +669,6 @@ export default function HomeScreen() {
             }}
             mode={mode}
             onModeChange={setMode}
-            preference={preference}
-            onPreferenceChange={setPreference}
             onPlan={() => void plan()}
             onCancel={cancelPlanning}
             onUseCurrentLocation={() => void centerOnUser()}
@@ -587,9 +691,11 @@ export default function HomeScreen() {
           <RouteCards
             routes={state.context.routes}
             selectedRouteId={state.context.selectedRouteId}
-            onSelect={(route) =>
-              send({ type: "SELECT_ROUTE", routeId: route.id })
-            }
+            onSelect={(route) => {
+              send({ type: "SELECT_ROUTE", routeId: route.id });
+              setShadowTimeOffsetMinutes(0);
+              void cacheRoute(route);
+            }}
             onStart={() => void start()}
             onBack={resetPreview}
             rtl={rtl}
@@ -613,27 +719,6 @@ export default function HomeScreen() {
             onStop={() => void stop()}
           />
         ) : null}
-        {state.context.engineWarming ? (
-          <StatusBanner
-            message={t("status.warming")}
-            tone="warning"
-            rtl={rtl}
-          />
-        ) : null}
-        {offlineContinuation ? (
-          <StatusBanner
-            message={t("status.offline")}
-            tone="warning"
-            rtl={rtl}
-          />
-        ) : null}
-        {active && !backgroundEnabled && !offlineContinuation ? (
-          <StatusBanner
-            message={t("status.keepOpen")}
-            tone="warning"
-            rtl={rtl}
-          />
-        ) : null}
         {state.matches("permissionDenied") ? (
           <StatusBanner
             message={t("error.permission")}
@@ -641,15 +726,37 @@ export default function HomeScreen() {
             actionLabel={t("retry")}
             onAction={() => send({ type: "RETRY" })}
             rtl={rtl}
+            navigation={active}
           />
-        ) : null}
-        {state.matches("error") ? (
+        ) : state.matches("error") ? (
           <StatusBanner
             message={state.context.error ?? t("error.generic")}
             tone="error"
             actionLabel={t("retry")}
             onAction={() => void plan()}
             rtl={rtl}
+            navigation={active}
+          />
+        ) : state.context.engineWarming ? (
+          <StatusBanner
+            message={t("status.warming")}
+            tone="warning"
+            rtl={rtl}
+            navigation={active}
+          />
+        ) : offlineContinuation ? (
+          <StatusBanner
+            message={t("status.offline")}
+            tone="warning"
+            rtl={rtl}
+            navigation={active}
+          />
+        ) : active && !backgroundEnabled ? (
+          <StatusBanner
+            message={t("status.keepOpen")}
+            tone="warning"
+            rtl={rtl}
+            navigation
           />
         ) : null}
       </View>
@@ -680,20 +787,22 @@ function updateLocation(
   location: Location.LocationObject,
   setOrigin: (value: Coordinate) => void,
   setUserCoordinate: (value: Coordinate) => void,
+  setUserHeadingDegrees: (value: number | null) => void,
   setStatus: (value: LocationStatus) => void,
 ) {
   const coordinate = toCoordinate(location);
   setOrigin(coordinate);
   setUserCoordinate(coordinate);
+  setUserHeadingDegrees(location.coords.heading);
   setStatus("ready");
 }
 
-function insideMetroCoverage(coordinate: Coordinate): boolean {
+function insideIsraelServiceArea(coordinate: Coordinate): boolean {
   return (
-    coordinate.longitude >= METRO_BBOX.west &&
-    coordinate.longitude <= METRO_BBOX.east &&
-    coordinate.latitude >= METRO_BBOX.south &&
-    coordinate.latitude <= METRO_BBOX.north
+    coordinate.longitude >= ISRAEL_SERVICE_BBOX.west &&
+    coordinate.longitude <= ISRAEL_SERVICE_BBOX.east &&
+    coordinate.latitude >= ISRAEL_SERVICE_BBOX.south &&
+    coordinate.latitude <= ISRAEL_SERVICE_BBOX.north
   );
 }
 

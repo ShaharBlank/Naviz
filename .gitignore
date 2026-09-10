@@ -18,6 +18,10 @@ coverage.xml
 htmlcov/
 node_modules/
 .expo/
+.pnpm-store/
+.test-tmp/
+.tmp/
+apps/mobile/.export-check/
 apps/mobile/android/
 apps/mobile/ios/
 apps/mobile/coverage/
@@ -26,6 +30,7 @@ apps/mobile/coverage/
 *.mobileprovision
 data/artifacts/
 data/downloads/
+data/generated/
 artifacts/release/*.apk
 artifacts/emulator/
 artifacts/export/

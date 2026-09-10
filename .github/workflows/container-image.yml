@@ -10,6 +10,7 @@ on:
       - "apps/api/**"
       - "artifacts/demo/**"
       - "infra/Dockerfile"
+      - "infra/data-bundles/**"
       - "packages/data_pipeline/**"
       - "pyproject.toml"
       - "uv.lock"

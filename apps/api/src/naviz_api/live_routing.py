@@ -95,11 +95,18 @@ class LiveRoutePlanner:
     def _alternatives(
         self, request: RoutePlanRequest, itineraries: list[EngineItinerary]
     ) -> list[RouteAlternative]:
-        fastest_duration = min(
-            (item.arrival_at - item.departure_at).total_seconds() for item in itineraries
+        fastest_itinerary = min(
+            itineraries,
+            key=lambda item: (item.arrival_at - item.departure_at).total_seconds(),
         )
+        fastest_duration = (
+            fastest_itinerary.arrival_at - fastest_itinerary.departure_at
+        ).total_seconds()
+        fastest_distance = sum(leg.distance_m for leg in fastest_itinerary.legs)
         result = [
-            self._to_alternative(request, itinerary, index, fastest_duration)
+            self._to_alternative(
+                request, itinerary, index, fastest_duration, fastest_distance
+            )
             for index, itinerary in enumerate(itineraries)
         ]
         if request.mode in _TRANSIT_MODES and request.include_comparisons:
@@ -116,6 +123,7 @@ class LiveRoutePlanner:
         itinerary: EngineItinerary,
         index: int,
         fastest_duration: float,
+        fastest_distance: float,
     ) -> RouteAlternative:
         all_geometry: list[Coordinate] = []
         route_legs: list[RouteLeg] = []
@@ -279,6 +287,7 @@ class LiveRoutePlanner:
                 cycling_distance_m=round(cycling_distance, 1),
                 transfers=max(0, transit_legs - 1),
                 detour_time_percent=_percent(duration_s, fastest_duration),
+                detour_distance_percent=_percent(total_distance, fastest_distance),
             ),
             quality=DataQuality(
                 confidence=DataConfidence.HIGH,

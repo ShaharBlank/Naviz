@@ -67,10 +67,11 @@ class ValhallaAdapter:
         base_url: str,
         timeout_seconds: float = 8.0,
         user_agent: str = "Naviz/0.2",
+        client_id: str = "naviz.app",
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout_seconds
-        self._headers = {"User-Agent": user_agent}
+        self._headers = {"User-Agent": user_agent, "X-Client-Id": client_id}
 
     async def routes(self, request: RoutePlanRequest) -> list[EngineItinerary]:
         payload = self.request_payload(request)
@@ -121,7 +122,7 @@ class ValhallaAdapter:
             if key not in seen:
                 unique.append(itinerary)
                 seen.add(key)
-        return unique[:3]
+        return unique[: (5 if request.include_comparisons else 3)]
 
     @classmethod
     def _alternative_payloads(
@@ -326,7 +327,7 @@ class TransitousAdapter:
             "arriveBy": str(request.arrive_by is not None).lower(),
             "detailedTransfers": "true",
             "language": request.locale.value,
-            "maxTransfers": "2",
+            "maxTransfers": "3" if request.include_comparisons else "2",
             "directModes": "WALK",
             "preTransitModes": "WALK",
             "postTransitModes": "WALK",
@@ -346,7 +347,7 @@ class TransitousAdapter:
                 preTransitModes="WALK,BIKE_SHARING",
                 postTransitModes="WALK,BIKE_SHARING",
             )
-        if request.preference.value == "fewer_transfers":
+        if request.preference.value == "fewer_transfers" and not request.include_comparisons:
             params["maxTransfers"] = "1"
         if request.accessibility.require_step_free:
             params["pedestrianProfile"] = "WHEELCHAIR"

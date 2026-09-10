@@ -2,10 +2,10 @@
 
 Licensed under the [Apache License 2.0](LICENSE).
 
-Naviz is a Hebrew-first navigation MVP for metropolitan Tel Aviv. The Android
-and iOS application covers Tel Aviv-Yafo, Ramat Gan, Givatayim, Bnei Brak, Bat
-Yam, Holon, and nearby corridors with live regional search and street routing,
-scheduled public transport, shaded walking, and low-traffic-signal alternatives.
+Naviz is a Hebrew-first navigation MVP for Israel. The Android and iOS
+development-build application combines live nationwide search and street routing,
+scheduled public transport, shaded walking, low-traffic-signal alternatives, and
+a bounded 3D building-shadow view.
 
 ## What is implemented
 
@@ -19,14 +19,15 @@ scheduled public transport, shaded walking, and low-traffic-signal alternatives.
   silently boarded when permission is unknown. Shared vehicles are treated as
   separate access/egress rentals.
 - Typed Valhalla and OpenTripPlanner adapters behind normalized engine ports.
-- Expo SDK 56/React Native 0.85 development-build app with MapLibre,
+- Expo SDK 57/React Native 0.86 development-build app with MapLibre,
   Hebrew/English, RTL/LTR, local recents/favorites, route cards, voice/haptics,
   background/foreground location, off-route hysteresis, rerouting, on-device
-  SQLite search fallback, and unexpired-route offline continuation.
+  SQLite search fallback, unexpired-route offline continuation, route-comparison
+  cards, and 2D/3D building-shadow controls.
 - Immutable checksummed bundle contract, OpenAPI-generated TypeScript types,
   Alembic migrations, Docker/Render configs, CI, dependency audit, and SBOM job.
 
-The deployed application uses regional providers and never serves the checked-in
+The deployed application uses live public providers and never serves the checked-in
 fixture. `artifacts/demo` remains a deterministic, test-only graph used to prove
 route invariants and API compatibility without making network calls in CI.
 
@@ -89,4 +90,5 @@ npx expo export --platform android --output-dir dist\android-bundle
 ```
 
 See [deployment](docs/deployment.md), [implementation status](docs/status.md),
+the [nationwide and 3D architecture](docs/architecture/nationwide-and-3d-shade.md),
 and [acceptance gates](docs/acceptance.md) for the remaining field-validation work.

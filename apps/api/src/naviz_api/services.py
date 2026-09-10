@@ -13,12 +13,15 @@ from .live_routing import AsyncRoutePlanner, LiveRoutePlanner
 from .live_search import CoverageArea, PhotonPlaceSearch
 from .mobility import GbfsFeed, MobilityService
 from .models import (
+    CapabilityStatus,
     Coordinate,
     DataStatus,
     Locale,
     Place,
     RoutePlanRequest,
     RoutePlanResponse,
+    ShadowSceneRequest,
+    ShadowSceneResponse,
     TravelMode,
 )
 from .route_features import (
@@ -120,15 +123,28 @@ class Services:
     mobility: MobilityService
     identity: IdentityRepository
     tokens: TokenVerifier
+    service_coverage_bbox: tuple[float, float, float, float]
+    feature_coverage_bbox: tuple[float, float, float, float] | None
+    shadow_context: SqliteOsmRouteContext | None
     started_at: datetime
+
+    async def shadow_scene(self, request: ShadowSceneRequest) -> ShadowSceneResponse:
+        if self.shadow_context is None:
+            return ShadowSceneResponse(
+                available=False,
+                at=request.at,
+                solar_azimuth_degrees=0,
+                solar_elevation_degrees=0,
+                coverage_bbox=self.feature_coverage_bbox,
+                model_version="unavailable",
+                warning="A validated building bundle is not loaded.",
+            )
+        return await self.shadow_context.shadow_scene(request)
 
     def status(self) -> DataStatus:
         if self.settings.live_providers:
             return DataStatus(
-                coverage=(
-                    "Tel Aviv metropolitan area: Tel Aviv-Yafo, Ramat Gan, Givatayim, "
-                    "Bnei Brak, Bat Yam, Holon, and nearby corridors"
-                ),
+                coverage="Israel nationwide routing coverage",
                 data_version=self.settings.data_bundle,
                 engine_profile="regional-live",
                 warmed=True,
@@ -142,6 +158,9 @@ class Services:
                         "realtime": bool(self.settings.gbfs_feeds),
                     },
                 },
+                service_coverage_bbox=self.service_coverage_bbox,
+                feature_coverage_bbox=self.feature_coverage_bbox,
+                capabilities=self._capabilities(),
             )
         return DataStatus(
             coverage="Tel Aviv-Yafo test fixture",
@@ -158,7 +177,33 @@ class Services:
                     "realtime": bool(self.settings.gbfs_feeds),
                 },
             },
+            service_coverage_bbox=self.service_coverage_bbox,
+            feature_coverage_bbox=self.feature_coverage_bbox,
+            capabilities=self._capabilities(),
         )
+
+    def _capabilities(self) -> dict[str, CapabilityStatus]:
+        service = self.service_coverage_bbox
+        feature = self.feature_coverage_bbox
+        return {
+            "search": CapabilityStatus(available=True, coverage_bbox=service),
+            "street_routing": CapabilityStatus(available=True, coverage_bbox=service),
+            "scheduled_transit": CapabilityStatus(available=True, coverage_bbox=service),
+            "shade": CapabilityStatus(available=feature is not None, coverage_bbox=feature),
+            "traffic_signals": CapabilityStatus(
+                available=feature is not None,
+                coverage_bbox=feature,
+            ),
+            "building_shadows_3d": CapabilityStatus(
+                available=self.shadow_context is not None,
+                coverage_bbox=feature,
+            ),
+            "live_transit": CapabilityStatus(available=False, realtime=False),
+            "shared_mobility": CapabilityStatus(
+                available=bool(self.settings.gbfs_feeds),
+                realtime=bool(self.settings.gbfs_feeds),
+            ),
+        }
 
 
 def build_services(settings: Settings) -> Services:
@@ -170,6 +215,8 @@ def build_services(settings: Settings) -> Services:
     )
     search: SearchPort
     routes: AsyncRoutePlanner
+    feature_coverage_bbox: tuple[float, float, float, float] | None = None
+    shadow_context: SqliteOsmRouteContext | None = None
     if settings.live_providers:
         if (
             not settings.valhalla_url
@@ -196,15 +243,23 @@ def build_services(settings: Settings) -> Services:
         )
         feature_context: RouteContextPort
         if settings.feature_bundle_path:
-            feature_context = SqliteOsmRouteContext(settings.feature_bundle_path)
+            sqlite_context = SqliteOsmRouteContext(settings.feature_bundle_path)
+            feature_context = sqlite_context
+            shadow_context = sqlite_context
+            feature_coverage_bbox = sqlite_context.coverage_bbox
         else:
             feature_context = OverpassRouteContext(
                 cast(str, settings.overpass_url),
                 user_agent=user_agent,
                 cache_seconds=max(settings.provider_cache_seconds, 1_800),
             )
+            feature_coverage_bbox = settings.coverage_bbox
         routes = LiveRoutePlanner(
-            ValhallaAdapter(settings.valhalla_url, user_agent=user_agent),
+            ValhallaAdapter(
+                settings.valhalla_url,
+                user_agent=user_agent,
+                client_id="naviz.app",
+            ),
             TransitousAdapter(settings.transitous_url, user_agent=user_agent),
             coverage,
             data_version=settings.data_bundle,
@@ -239,6 +294,9 @@ def build_services(settings: Settings) -> Services:
             settings.auth_audience,
             development=not settings.is_production,
         ),
+        service_coverage_bbox=settings.coverage_bbox,
+        feature_coverage_bbox=feature_coverage_bbox,
+        shadow_context=shadow_context,
         started_at=datetime.now(UTC),
     )
 

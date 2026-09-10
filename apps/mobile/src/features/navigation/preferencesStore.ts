@@ -31,7 +31,7 @@ export const usePreferences = create<PreferencesState>()(
     (set) => ({
       locale: i18n.language === "en" ? "en" : "he",
       mode: "walk",
-      preference: "balanced_shade",
+      preference: "fastest",
       vehicleKind: "none",
       recent: [],
       favorites: [],
@@ -42,14 +42,9 @@ export const usePreferences = create<PreferencesState>()(
       setMode: (mode) =>
         set({
           mode,
-          preference:
-            mode === "walk"
-              ? "balanced_shade"
-              : ["car", "motorcycle", "truck"].includes(mode)
-                ? "fastest"
-                : mode.includes("transit") || mode === "transit"
-                  ? "fewer_transfers"
-                  : "safer_streets",
+          // The planning screen requests every comparable route type. This
+          // value remains an internal, deterministic tie-break for the API.
+          preference: "fastest",
           vehicleKind:
             mode === "bike_transit"
               ? "folding_bike"

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .bundle import read_manifest, validate_bundle
 from .gtfs import validate_gtfs
+from .osm_features import validate_osm_feature_bundle
 
 
 def main() -> int:
@@ -16,6 +17,10 @@ def main() -> int:
     validate.add_argument("--manifest", type=Path)
     gtfs = subparsers.add_parser("validate-gtfs", help="Validate GTFS references and coordinates")
     gtfs.add_argument("archive", type=Path)
+    osm = subparsers.add_parser(
+        "validate-osm-features", help="Validate an immutable OSM spatial feature bundle"
+    )
+    osm.add_argument("database", type=Path)
     args = parser.parse_args()
     if args.command == "validate":
         manifest_path = args.manifest or args.bundle_directory / "manifest.json"
@@ -45,6 +50,20 @@ def main() -> int:
             )
         )
         return 0 if gtfs_result.valid else 1
+    if args.command == "validate-osm-features":
+        osm_result = validate_osm_feature_bundle(args.database)
+        print(
+            json.dumps(
+                {
+                    "valid": osm_result.valid,
+                    "errors": osm_result.errors,
+                    "warnings": osm_result.warnings,
+                    "metadata": osm_result.metadata,
+                },
+                indent=2,
+            )
+        )
+        return 0 if osm_result.valid else 1
     return 2
 
 

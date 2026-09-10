@@ -18,9 +18,16 @@ from naviz_api.models import (
     RouteMetrics,
     RoutePlanRequest,
     RoutePreference,
+    ShadowSceneRequest,
     TravelMode,
 )
-from naviz_api.route_features import OsmRouteContext, RouteFeatureAnalyzer, SqliteOsmRouteContext
+from naviz_api.route_features import (
+    OUTSIDE_VALIDATED_FEATURE_COVERAGE,
+    OsmRouteContext,
+    RouteContextPort,
+    RouteFeatureAnalyzer,
+    SqliteOsmRouteContext,
+)
 from pyproj import Transformer
 from shapely.geometry import Point
 
@@ -44,7 +51,11 @@ async def test_sqlite_context_reads_only_route_corridor_features(tmp_path) -> No
         CREATE VIRTUAL TABLE signal_index USING rtree(
             id, min_lon, max_lon, min_lat, max_lat
         );
+        CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL);
         """
+    )
+    connection.execute(
+        "INSERT INTO metadata VALUES ('coverage_bbox', '[34.69, 31.94, 34.93, 32.20]')"
     )
     coordinates = [
         (34.7790, 32.0730),
@@ -85,6 +96,169 @@ async def test_sqlite_context_reads_only_route_corridor_features(tmp_path) -> No
     assert len(context.buildings) == 1
     assert context.buildings[0].height_m == 16
     assert len(context.traffic_signals) == 1
+
+    source = SqliteOsmRouteContext(database)
+    scene_request = ShadowSceneRequest(
+        encoded_polyline=route.encoded_polyline,
+        at=datetime(2026, 8, 17, 12, 0, tzinfo=TZ),
+        corridor_m=180,
+    )
+    scene = await source.shadow_scene(
+        scene_request
+    )
+    assert scene.available
+    assert scene.solar_elevation_degrees > 0
+    assert scene.shadows
+    assert scene.high_confidence_shadows
+    assert scene.attribution == ["© OpenStreetMap contributors · ODbL"]
+    assert await source.shadow_scene(scene_request) is scene
+
+    long_scene = await source.shadow_scene(
+        ShadowSceneRequest(
+            encoded_polyline=encode_polyline(
+                [
+                    Coordinate(latitude=31.98, longitude=34.79),
+                    Coordinate(latitude=32.06, longitude=34.79),
+                ]
+            ),
+            at=datetime(2026, 8, 17, 12, 0, tzinfo=TZ),
+            corridor_m=180,
+        )
+    )
+    assert not long_scene.available
+    assert long_scene.warning is not None
+    assert "six-kilometre viewing window" in long_scene.warning
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("city", "origin", "destination"),
+    [
+        (
+            "Jerusalem",
+            Coordinate(latitude=31.7683, longitude=35.2137),
+            Coordinate(latitude=31.7780, longitude=35.2350),
+        ),
+        (
+            "Haifa",
+            Coordinate(latitude=32.7940, longitude=34.9896),
+            Coordinate(latitude=32.8070, longitude=34.9580),
+        ),
+        (
+            "Be'er Sheva",
+            Coordinate(latitude=31.2530, longitude=34.7915),
+            Coordinate(latitude=31.2430, longitude=34.7990),
+        ),
+        (
+            "Eilat",
+            Coordinate(latitude=29.5577, longitude=34.9519),
+            Coordinate(latitude=29.5480, longitude=34.9570),
+        ),
+    ],
+)
+async def test_metro_feature_bundle_never_claims_complete_national_context(
+    tmp_path, city: str, origin: Coordinate, destination: Coordinate
+) -> None:
+    del city
+    database = tmp_path / "features.sqlite3"
+    connection = sqlite3.connect(database)
+    connection.executescript(
+        """
+        CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        INSERT INTO metadata VALUES (
+            'coverage_bbox', '[34.69, 31.94, 34.93, 32.20]'
+        );
+        """
+    )
+    connection.commit()
+    connection.close()
+    route = _context_route(origin, destination)
+
+    source = SqliteOsmRouteContext(database)
+    context = await source.context([route], buildings=True, traffic_signals=True)
+
+    assert source.coverage_bbox == (34.69, 31.94, 34.93, 32.20)
+    assert not context.complete
+    assert context.incomplete_reason == OUTSIDE_VALIDATED_FEATURE_COVERAGE
+    assert context.buildings == ()
+    assert context.traffic_signals == ()
+
+
+@pytest.mark.asyncio
+async def test_route_corridor_near_feature_boundary_is_not_marked_complete(tmp_path) -> None:
+    database = tmp_path / "features.sqlite3"
+    connection = sqlite3.connect(database)
+    connection.executescript(
+        """
+        CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        INSERT INTO metadata VALUES (
+            'coverage_bbox', '[34.69, 31.94, 34.93, 32.20]'
+        );
+        """
+    )
+    connection.commit()
+    connection.close()
+    route = _context_route(
+        Coordinate(latitude=32.0700, longitude=34.6905),
+        Coordinate(latitude=32.0800, longitude=34.6905),
+    )
+
+    context = await SqliteOsmRouteContext(database).context(
+        [route], buildings=True, traffic_signals=True
+    )
+
+    assert not context.complete
+    assert context.incomplete_reason == OUTSIDE_VALIDATED_FEATURE_COVERAGE
+
+
+def test_feature_bundle_requires_validated_coverage_metadata(tmp_path) -> None:
+    database = tmp_path / "features.sqlite3"
+    connection = sqlite3.connect(database)
+    connection.execute("CREATE TABLE metadata(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+    connection.close()
+
+    with pytest.raises(ValueError, match="missing coverage_bbox"):
+        SqliteOsmRouteContext(database)
+
+
+def test_shadow_scene_requires_timezone_aware_time() -> None:
+    with pytest.raises(ValueError, match="UTC offset"):
+        ShadowSceneRequest(
+            encoded_polyline="abc",
+            at=datetime(2026, 8, 17, 12, 0),
+        )
+
+
+def test_outside_feature_coverage_has_distinct_truthful_fallbacks() -> None:
+    departure = datetime(2026, 9, 9, 9, 0, tzinfo=TZ)
+    route = _route("fast", 35.214, 600, 1_000, departure)
+    context = OsmRouteContext(
+        complete=False,
+        incomplete_reason=OUTSIDE_VALIDATED_FEATURE_COVERAGE,
+    )
+    walk_request = RoutePlanRequest(
+        origin=Coordinate(latitude=31.768, longitude=35.214),
+        destination=Coordinate(latitude=31.778, longitude=35.214),
+        depart_at=departure,
+        mode=TravelMode.WALK,
+        preference=RoutePreference.BALANCED_SHADE,
+    )
+    road_request = walk_request.model_copy(
+        update={"mode": TravelMode.CAR, "preference": RoutePreference.FEWER_LIGHTS}
+    )
+
+    analyzer = RouteFeatureAnalyzer(cast(RouteContextPort, None))
+    shade = analyzer._shade_routes(walk_request, [route], context)[0]
+    signals = analyzer._signal_routes(road_request, [route], context)[0]
+
+    assert shade.fallback_reason == "shade_outside_validated_coverage"
+    assert signals.fallback_reason == "signal_outside_validated_coverage"
+    assert shade.quality.confidence == DataConfidence.LOW
+    assert signals.quality.confidence == DataConfidence.LOW
+    assert shade.metrics.shade_fraction is None
+    assert signals.metrics.traffic_signals is None
+    assert "outside validated feature coverage" in shade.warnings[0]
+    assert "outside validated feature coverage" in signals.warnings[0]
 
 
 def test_signal_comparison_returns_total_counts_and_material_reduction() -> None:
@@ -177,4 +351,19 @@ def _route(
         metrics=RouteMetrics(distance_m=distance_m, duration_s=duration_s),
         quality=DataQuality(confidence=DataConfidence.HIGH),
         expires_at=departure + timedelta(minutes=15),
+    )
+
+
+def _context_route(origin: Coordinate, destination: Coordinate) -> RouteAlternative:
+    return cast(
+        RouteAlternative,
+        SimpleNamespace(
+            bbox=(
+                min(origin.longitude, destination.longitude),
+                min(origin.latitude, destination.latitude),
+                max(origin.longitude, destination.longitude),
+                max(origin.latitude, destination.latitude),
+            ),
+            encoded_polyline=encode_polyline([origin, destination]),
+        ),
     )

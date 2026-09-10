@@ -25,6 +25,52 @@
         "title": "AccessibilityPreferences",
         "type": "object"
       },
+      "CapabilityStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "coverage_bbox": {
+            "anyOf": [
+              {
+                "maxItems": 4,
+                "minItems": 4,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Bbox"
+          },
+          "realtime": {
+            "default": false,
+            "title": "Realtime",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "available"
+        ],
+        "title": "CapabilityStatus",
+        "type": "object"
+      },
       "Coordinate": {
         "additionalProperties": false,
         "properties": {
@@ -105,6 +151,13 @@
       "DataStatus": {
         "additionalProperties": false,
         "properties": {
+          "capabilities": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/CapabilityStatus"
+            },
+            "title": "Capabilities",
+            "type": "object"
+          },
           "coverage": {
             "title": "Coverage",
             "type": "string"
@@ -117,6 +170,33 @@
             "title": "Engine Profile",
             "type": "string"
           },
+          "feature_coverage_bbox": {
+            "anyOf": [
+              {
+                "maxItems": 4,
+                "minItems": 4,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Feature Coverage Bbox"
+          },
           "feeds": {
             "additionalProperties": {
               "additionalProperties": true,
@@ -124,6 +204,33 @@
             },
             "title": "Feeds",
             "type": "object"
+          },
+          "service_coverage_bbox": {
+            "anyOf": [
+              {
+                "maxItems": 4,
+                "minItems": 4,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service Coverage Bbox"
           },
           "updated_at": {
             "format": "date-time",
@@ -1138,6 +1245,150 @@
         "title": "SegmentAnnotation",
         "type": "object"
       },
+      "ShadowPolygon": {
+        "additionalProperties": false,
+        "properties": {
+          "rings": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/Coordinate"
+              },
+              "type": "array"
+            },
+            "title": "Rings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rings"
+        ],
+        "title": "ShadowPolygon",
+        "type": "object"
+      },
+      "ShadowSceneRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "corridor_m": {
+            "default": 180,
+            "maximum": 500.0,
+            "minimum": 50.0,
+            "title": "Corridor M",
+            "type": "number"
+          },
+          "encoded_polyline": {
+            "description": "Polyline6 route window around the visible/current position; shadow scenes are limited to six kilometres.",
+            "maxLength": 300000,
+            "minLength": 2,
+            "title": "Encoded Polyline",
+            "type": "string"
+          }
+        },
+        "required": [
+          "encoded_polyline",
+          "at"
+        ],
+        "title": "ShadowSceneRequest",
+        "type": "object"
+      },
+      "ShadowSceneResponse": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "title": "At",
+            "type": "string"
+          },
+          "attribution": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Attribution",
+            "type": "array"
+          },
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "coverage_bbox": {
+            "anyOf": [
+              {
+                "maxItems": 4,
+                "minItems": 4,
+                "prefixItems": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "number"
+                  }
+                ],
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage Bbox"
+          },
+          "high_confidence_shadows": {
+            "items": {
+              "$ref": "#/components/schemas/ShadowPolygon"
+            },
+            "title": "High Confidence Shadows",
+            "type": "array"
+          },
+          "model_version": {
+            "title": "Model Version",
+            "type": "string"
+          },
+          "shadows": {
+            "items": {
+              "$ref": "#/components/schemas/ShadowPolygon"
+            },
+            "title": "Shadows",
+            "type": "array"
+          },
+          "solar_azimuth_degrees": {
+            "title": "Solar Azimuth Degrees",
+            "type": "number"
+          },
+          "solar_elevation_degrees": {
+            "title": "Solar Elevation Degrees",
+            "type": "number"
+          },
+          "warning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Warning"
+          }
+        },
+        "required": [
+          "available",
+          "at",
+          "solar_azimuth_degrees",
+          "solar_elevation_degrees",
+          "model_version"
+        ],
+        "title": "ShadowSceneResponse",
+        "type": "object"
+      },
       "TransitDetails": {
         "additionalProperties": false,
         "properties": {
@@ -1345,9 +1596,9 @@
     }
   },
   "info": {
-    "summary": "Tel Aviv shaded, multimodal, and low-signal navigation",
+    "summary": "Israel-wide shaded, multimodal, and low-signal navigation",
     "title": "Naviz API",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -2071,6 +2322,47 @@
         "summary": "Reverse Search",
         "tags": [
           "search"
+        ]
+      }
+    },
+    "/v1/shadows/scene": {
+      "post": {
+        "operationId": "shadow_scene_v1_shadows_scene_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShadowSceneRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShadowSceneResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Shadow Scene",
+        "tags": [
+          "shade"
         ]
       }
     }

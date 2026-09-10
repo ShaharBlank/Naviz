@@ -7,6 +7,8 @@ import type {
   RoutePlanRequest,
   RoutePlanResponse,
   SearchResponse,
+  ShadowSceneRequest,
+  ShadowSceneResponse,
 } from "./types";
 import { offlineSearchPlaces } from "../features/search/offlineSearch";
 
@@ -147,10 +149,25 @@ export function getDataStatus(): Promise<DataStatus> {
   return fetchJson("/v1/data/status", undefined, 8_000);
 }
 
+export function getShadowScene(
+  payload: ShadowSceneRequest,
+  signal?: AbortSignal,
+): Promise<ShadowSceneResponse> {
+  return fetchJson(
+    "/v1/shadows/scene",
+    {
+      method: "POST",
+      body: JSON.stringify(payload),
+      ...(signal ? { signal } : {}),
+    },
+    20_000,
+  );
+}
+
 export function getMobilityVehicles(
   center: Coordinate,
 ): Promise<MobilityResponse> {
-  // Roughly a one-kilometre walking catchment in metropolitan Tel Aviv.
+  // Roughly a one-kilometre walking catchment around the current map center.
   // Keeping the view local avoids an unreadable wall of fleet markers.
   const latitudeRadius = 0.008;
   const longitudeRadius = 0.009;

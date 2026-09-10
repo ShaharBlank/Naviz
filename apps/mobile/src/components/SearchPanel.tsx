@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 
-import type { Place, RoutePreference, TravelMode } from "../api/types";
+import type { Place, TravelMode } from "../api/types";
 import { colors, radius, shadow, spacing } from "../theme/tokens";
 
 export type LocationStatus =
@@ -29,8 +29,6 @@ interface Props {
   onToggleFavorite: (place: Place) => void;
   mode: TravelMode;
   onModeChange: (mode: TravelMode) => void;
-  preference: RoutePreference;
-  onPreferenceChange: (preference: RoutePreference) => void;
   onPlan: () => void;
   onCancel: () => void;
   onUseCurrentLocation: () => void;
@@ -65,15 +63,6 @@ const MODE_ICONS: Record<TravelMode, string> = {
   rental_transit: "⇄",
 };
 
-function preferencesFor(mode: TravelMode): RoutePreference[] {
-  if (mode === "walk") return ["fastest", "balanced_shade", "maximum_shade"];
-  if (["car", "motorcycle", "truck"].includes(mode))
-    return ["fastest", "fewer_lights"];
-  if (mode === "bike" || mode === "scooter")
-    return ["fastest", "safer_streets"];
-  return ["fastest", "fewer_transfers"];
-}
-
 export function SearchPanel(props: Props) {
   const { t } = useTranslation();
   const rtl = props.locale === "he";
@@ -81,11 +70,13 @@ export function SearchPanel(props: Props) {
   const [showMoreModes, setShowMoreModes] = useState(
     MORE_MODES.includes(props.mode),
   );
+  const moreModesVisible = showMoreModes || MORE_MODES.includes(props.mode);
   const [collapsedDestinationId, setCollapsedDestinationId] = useState<
     string | null
   >(null);
   const modeSelectorExpanded =
     collapsedDestinationId !== props.selectedDestination?.id;
+
   const favoriteSelected = props.favorites.some(
     (place) => place.id === props.selectedDestination?.id,
   );
@@ -106,17 +97,7 @@ export function SearchPanel(props: Props) {
     <View style={[styles.panel, searchFocused && styles.panelWhileTyping]}>
       <View style={styles.handle} />
       <View style={[styles.brandRow, rtl && styles.rowReverse]}>
-        <View style={styles.brandCopy}>
-          <Text style={[styles.brand, rtl && styles.rtlText]}>
-            {t("appName")}
-          </Text>
-          <Text
-            style={[styles.tagline, rtl && styles.rtlText]}
-            numberOfLines={1}
-          >
-            {t("tagline")}
-          </Text>
-        </View>
+        <Text style={[styles.brand, rtl && styles.rtlText]}>{t("appName")}</Text>
         <Pressable
           accessibilityRole="button"
           style={styles.languageButton}
@@ -242,6 +223,7 @@ export function SearchPanel(props: Props) {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={t("collapseModes")}
+                  accessibilityState={{ expanded: true }}
                   onPress={() =>
                     setCollapsedDestinationId(
                       props.selectedDestination?.id ?? null,
@@ -276,7 +258,7 @@ export function SearchPanel(props: Props) {
                     />
                   ))}
                 </View>
-                {showMoreModes ? (
+                {moreModesVisible ? (
                   <View style={[styles.moreModeGrid, rtl && styles.rowReverse]}>
                     {MORE_MODES.map((mode) => (
                       <ModeButton
@@ -297,11 +279,15 @@ export function SearchPanel(props: Props) {
                 ) : null}
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => setShowMoreModes((value) => !value)}
+                  accessibilityLabel={
+                    moreModesVisible ? t("fewerModes") : t("moreModes")
+                  }
+                  accessibilityState={{ expanded: moreModesVisible }}
+                  onPress={() => setShowMoreModes(!moreModesVisible)}
                   style={styles.moreButton}
                 >
                   <Text style={styles.moreButtonText}>
-                    {showMoreModes ? t("fewerModes") : t("moreModes")}
+                    {moreModesVisible ? t("fewerModes") : t("moreModes")}
                   </Text>
                 </Pressable>
               </>
@@ -309,6 +295,7 @@ export function SearchPanel(props: Props) {
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={t("changeMode")}
+                accessibilityState={{ expanded: false }}
                 onPress={() => setCollapsedDestinationId(null)}
                 style={[styles.selectedModeSummary, rtl && styles.rowReverse]}
               >
@@ -322,23 +309,6 @@ export function SearchPanel(props: Props) {
               </Pressable>
             )}
 
-            <Text style={[styles.preferenceTitle, rtl && styles.rtlText]}>
-              {t("routePriority")}
-            </Text>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={[styles.chipRow, rtl && styles.rowReverse]}
-            >
-              {preferencesFor(props.mode).map((preference) => (
-                <Chip
-                  key={preference}
-                  label={t(`preference.${preference}`)}
-                  selected={props.preference === preference}
-                  onPress={() => props.onPreferenceChange(preference)}
-                />
-              ))}
-            </ScrollView>
             {props.mode === "rental_transit" ? (
               <Text style={[styles.mobilityStatus, rtl && styles.rtlText]}>
                 {props.mobilityCount === null
@@ -358,7 +328,7 @@ export function SearchPanel(props: Props) {
                 <ActivityIndicator color={colors.surface} />
               ) : null}
               <Text style={styles.planButtonText}>
-                {props.planning ? t("cancel") : t("planRoute")}
+                {props.planning ? t("cancel") : t("routeComparison")}
               </Text>
             </Pressable>
           </View>
@@ -469,29 +439,6 @@ function ModeButton({
   );
 }
 
-function Chip({
-  label,
-  selected,
-  onPress,
-}: {
-  label: string;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={[styles.chip, selected && styles.chipSelected]}
-    >
-      <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   panel: {
     position: "absolute",
@@ -525,9 +472,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   rowReverse: { flexDirection: "row-reverse" },
-  brandCopy: { flex: 1 },
   brand: { fontSize: 24, lineHeight: 28, fontWeight: "900", color: colors.ink },
-  tagline: { fontSize: 12, color: colors.muted, marginTop: 1 },
   rtlText: { textAlign: "right", writingDirection: "rtl" },
   languageButton: {
     minHeight: 44,
@@ -650,7 +595,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: spacing.xs,
   },
-  modeButtonCompact: { flexGrow: 0, width: "48%", minHeight: 76 },
+  modeButtonCompact: {
+    flexBasis: "46%",
+    flexGrow: 1,
+    minWidth: 120,
+    minHeight: 76,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+  },
   modeSelected: { backgroundColor: "#EEF2FF", borderColor: colors.primary },
   modeIcon: { fontSize: 20 },
   modeLabel: {
@@ -662,7 +614,11 @@ const styles = StyleSheet.create({
     textAlign: "center",
     flexShrink: 1,
   },
-  modeLabelCompact: { minHeight: 30, textAlignVertical: "center" },
+  modeLabelCompact: {
+    width: "100%",
+    minHeight: 30,
+    textAlignVertical: "center",
+  },
   modeLabelSelected: { color: colors.primaryDark },
   selectedModeSummary: {
     minHeight: 58,
@@ -685,25 +641,6 @@ const styles = StyleSheet.create({
   changeModeText: { color: colors.primary, fontSize: 12, fontWeight: "800" },
   moreButton: { minHeight: 44, justifyContent: "center", alignItems: "center" },
   moreButtonText: { color: colors.primary, fontSize: 13, fontWeight: "800" },
-  preferenceTitle: {
-    color: colors.muted,
-    fontSize: 12,
-    fontWeight: "800",
-    marginBottom: spacing.sm,
-  },
-  chipRow: { gap: spacing.sm, paddingBottom: spacing.sm },
-  chip: {
-    minHeight: 44,
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: spacing.lg,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  chipSelected: { backgroundColor: "#EEF2FF", borderColor: colors.primary },
-  chipText: { color: colors.ink, fontWeight: "600" },
-  chipTextSelected: { color: colors.primaryDark },
   mobilityStatus: {
     color: colors.muted,
     fontSize: 13,

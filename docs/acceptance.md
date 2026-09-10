@@ -1,9 +1,9 @@
-# Metropolitan MVP acceptance gates
+# Nationwide MVP acceptance gates
 
 The checked-in fixture is used only by deterministic tests. Deployed builds are
 configured to fail startup unless all regional providers are present; they never
 fall back to fixture routes. The gates below define continued field validation
-and the threshold for expanding coverage beyond metropolitan Tel Aviv.
+and the threshold for advertising a feature as validated in each Israeli region.
 
 ## Automated gates
 
@@ -29,3 +29,6 @@ and the threshold for expanding coverage beyond metropolitan Tel Aviv.
   no critical defects.
 
 Field observations use random test identifiers and never retain participant identity.
+Nationwide routing/search coverage does not imply nationwide shade, sidewalk, truck,
+or live-traffic quality parity. Each capability is exposed separately by
+`GET /v1/data/status` and advances only after its own corpus and field gates pass.

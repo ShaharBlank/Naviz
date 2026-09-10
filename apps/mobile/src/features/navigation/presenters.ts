@@ -12,7 +12,20 @@ export function formatDistance(meters: number): number {
   return Math.round((meters / 1_000) * 10) / 10;
 }
 
-export function formatTelAvivTime(value: string, locale: "he" | "en"): string {
+export function formatNavigationDistance(meters: number): {
+  key: "metrics.meters" | "metrics.kilometers";
+  value: number;
+} {
+  if (meters < 1_000) {
+    return {
+      key: "metrics.meters",
+      value: Math.max(0, Math.round(meters / 10) * 10),
+    };
+  }
+  return { key: "metrics.kilometers", value: formatDistance(meters) };
+}
+
+export function formatIsraelTime(value: string, locale: "he" | "en"): string {
   return new Date(value).toLocaleTimeString(
     locale === "he" ? "he-IL" : "en-IL",
     {

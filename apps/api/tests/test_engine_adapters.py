@@ -7,6 +7,7 @@ from naviz_api.geometry import encode_polyline, haversine_m
 from naviz_api.models import (
     Coordinate,
     RoutePlanRequest,
+    RoutePreference,
     TravelMode,
     VehicleKind,
     VehicleProfile,
@@ -15,6 +16,19 @@ from naviz_api.models import (
 TZ = ZoneInfo("Asia/Jerusalem")
 ORIGIN = Coordinate(latitude=32.0733, longitude=34.7799)
 DESTINATION = Coordinate(latitude=32.0791, longitude=34.7682)
+
+
+def test_valhalla_requests_include_identifying_client_header() -> None:
+    adapter = ValhallaAdapter(
+        "https://valhalla.example.test",
+        user_agent="Naviz/test",
+        client_id="naviz.app",
+    )
+
+    assert adapter._headers == {
+        "User-Agent": "Naviz/test",
+        "X-Client-Id": "naviz.app",
+    }
 
 
 def test_valhalla_request_preserves_truck_dimensions() -> None:
@@ -328,3 +342,17 @@ def test_transitous_rental_fallback_uses_walk_access() -> None:
     assert parameters["directModes"] == "WALK"
     assert parameters["preTransitModes"] == "WALK"
     assert parameters["postTransitModes"] == "WALK"
+
+
+def test_transit_comparisons_do_not_hide_higher_transfer_candidates() -> None:
+    request = RoutePlanRequest(
+        origin=ORIGIN,
+        destination=DESTINATION,
+        mode=TravelMode.TRANSIT,
+        preference=RoutePreference.FEWER_TRANSFERS,
+        include_comparisons=True,
+    )
+
+    assert TransitousAdapter.request_parameters(request)["maxTransfers"] == "3"
+    focused = request.model_copy(update={"include_comparisons": False})
+    assert TransitousAdapter.request_parameters(focused)["maxTransfers"] == "1"

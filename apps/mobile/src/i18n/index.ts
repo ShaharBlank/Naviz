@@ -7,7 +7,7 @@ const resources = {
   he: {
     translation: {
       appName: "Naviz",
-      tagline: "ניווט חכם יותר במטרופולין תל אביב",
+      tagline: "ניווט חכם יותר בכל ישראל",
       searchPlaceholder: "לאן נוסעים?",
       currentLocation: "המיקום הנוכחי",
       locating: "מאתר את המיקום…",
@@ -26,7 +26,8 @@ const resources = {
       transportMode: "אמצעי תחבורה",
       collapseModes: "צמצום בחירת אמצעי התחבורה",
       changeMode: "שינוי אמצעי התחבורה",
-      routePriority: "מה להעדיף? כל סוגי המסלולים יוצגו להשוואה",
+      allRoutesCalculated:
+        "נחשב ונציג את כל סוגי המסלולים המתאימים כדי שיהיה קל להשוות.",
       routeComparison: "השוואת מסלולים",
       routeComparisonHint:
         "בחרו מסלול להשוואה על המפה. הנתונים מוצגים לאותו זמן יציאה.",
@@ -34,6 +35,20 @@ const resources = {
       fewerModes: "פחות אפשרויות",
       overview: "כל המסלול",
       recenter: "מרכוז",
+      mapDisplayMode: "מצב תצוגת מפה",
+      map2d: "מפה דו־ממדית",
+      map3d: "בניינים בתלת־ממד",
+      map3dLighting: "בניינים בתלת־ממד · תאורה לפי כיוון השמש",
+      shadow3d: {
+        loading: "מחשב היטל צל לבניינים…",
+        scene: "צל בניינים ב־{{value}} · כהה יותר = גובה מאומת",
+        night: "לילה · אין קרינת שמש ישירה",
+        unavailable: "תצוגת הצל אינה זמינה במסדרון הזה",
+        earlier: "הצגת הצל 15 דקות מוקדם יותר",
+        later: "הצגת הצל 15 דקות מאוחר יותר",
+        resetTime: "חזרה לזמן המסלול",
+        reset: "זמן המסלול",
+      },
       mute: "השתקה",
       unmute: "הפעלת קול",
       route: {
@@ -59,18 +74,12 @@ const resources = {
         scooter_transit: "קורקינט + תחב״צ",
         rental_transit: "שיתופי + תחב״צ",
       },
-      preference: {
-        fastest: "מהיר",
-        balanced_shade: "צל מאוזן",
-        maximum_shade: "מקסימום צל",
-        fewer_lights: "פחות רמזורים",
-        safer_streets: "בטוח יותר",
-        fewer_transfers: "פחות החלפות",
-      },
       metrics: {
         minutes: "{{value}} דק׳",
+        meters: "{{value}} מ׳",
         kilometers: "{{value}} ק״מ",
         shade: "{{value}}% צל",
+        noSunExposure: "ללא חשיפה ישירה לשמש",
         sun: "{{value}} דק׳ בשמש",
         signalsAvoided: "{{value}} רמזורים פחות",
         signals: "{{value}} רמזורים",
@@ -80,6 +89,10 @@ const resources = {
         transitSource: "מקורות לוחות הזמנים · Transitous",
         foldBeforeBoarding: "יש לקפל ולשאת את הכלי לפני העלייה",
         arrival: "הגעה ב־{{value}}",
+        moreTime: "+{{value}} דק׳",
+        moreDistance: "+{{value}} ק״מ",
+        comparedWithFastest: "{{value}} לעומת המסלול המהיר",
+        noExtraDetails: "ללא מדדים נוספים",
       },
       confidence: {
         high: "דיוק גבוה",
@@ -117,6 +130,7 @@ const resources = {
           "הניווט פעיל. כדי לקבל הנחיות כשהמסך כבוי, יש לאפשר מיקום ברקע.",
       },
       navigation: {
+        positionMarker: "המיקום שלך בניווט {{mode}}",
         literal: "{{modifier}} {{street}}",
         depart: "צאו לכיוון {{street}}",
         turn: "{{modifier}} אל {{street}}",
@@ -131,11 +145,13 @@ const resources = {
         uturn: "בצעו פניית פרסה",
       },
       accessibility: {
-        routeCard: "מסלול {{name}}, {{duration}}, {{distance}}",
+        routeCard: "מסלול {{name}}, {{duration}}, {{distance}}, {{details}}",
+        routeCardHint: "הקישו פעמיים כדי להציג את המסלול הזה על המפה.",
+        backToSearch: "חזרה לחיפוש",
         map: "מפת Naviz",
       },
       empty: {
-        search: "לא נמצאו תוצאות באזור הכיסוי. נסו כתובת או שם מקום אחר.",
+        search: "לא נמצאו תוצאות בישראל. נסו כתובת או שם מקום אחר.",
         start: "חפשו יעד או בחרו יעד אחרון.",
       },
       error: {
@@ -145,10 +161,10 @@ const resources = {
         permission: "יש לאפשר גישה למיקום כדי לנווט מהמיקום הנוכחי.",
         locationUnavailable:
           "לא הצלחנו לקבוע את המיקום. ודאו ששירותי המיקום פעילים ונסו שוב.",
-        outsideCoverage: "Naviz פועל כרגע במטרופולין תל אביב והסביבה.",
+        outsideCoverage: "המיקום נמצא מחוץ לאזור השירות של Naviz בישראל.",
         code: {
           outside_coverage:
-            "הנקודה נמצאת מחוץ לאזור הכיסוי של מטרופולין תל אביב.",
+            "הנקודה נמצאת מחוץ לאזור השירות של Naviz בישראל.",
           routing_unavailable:
             "שירות חישוב המסלול אינו זמין כרגע. נסו שוב בעוד רגע.",
           no_route: "לא נמצא מסלול מתאים למצב ולהעדפות שנבחרו.",
@@ -162,7 +178,7 @@ const resources = {
   en: {
     translation: {
       appName: "Naviz",
-      tagline: "Smarter navigation across metropolitan Tel Aviv",
+      tagline: "Smarter navigation across Israel",
       searchPlaceholder: "Where to?",
       currentLocation: "Current location",
       locating: "Finding your location…",
@@ -181,8 +197,8 @@ const resources = {
       transportMode: "Travel mode",
       collapseModes: "Collapse travel-mode choices",
       changeMode: "Change travel mode",
-      routePriority:
-        "Prioritize a route type; all calculated types will be shown",
+      allRoutesCalculated:
+        "We'll calculate and show every suitable route type so they're easy to compare.",
       routeComparison: "Compare routes",
       routeComparisonHint:
         "Select a route to compare it on the map. Metrics use the same departure time.",
@@ -190,6 +206,20 @@ const resources = {
       fewerModes: "Fewer travel modes",
       overview: "Overview",
       recenter: "Recenter",
+      mapDisplayMode: "Map display mode",
+      map2d: "2D map",
+      map3d: "3D buildings",
+      map3dLighting: "3D buildings · sun-direction lighting",
+      shadow3d: {
+        loading: "Calculating building shadows…",
+        scene: "Building shadows at {{value}} · darker = verified height",
+        night: "Night · no direct sunlight",
+        unavailable: "Shadow view is unavailable for this corridor",
+        earlier: "Show shadows 15 minutes earlier",
+        later: "Show shadows 15 minutes later",
+        resetTime: "Return to route time",
+        reset: "Route time",
+      },
       mute: "Mute",
       unmute: "Unmute",
       route: {
@@ -215,18 +245,12 @@ const resources = {
         scooter_transit: "Scooter + transit",
         rental_transit: "Shared + transit",
       },
-      preference: {
-        fastest: "Fastest",
-        balanced_shade: "Balanced shade",
-        maximum_shade: "Maximum shade",
-        fewer_lights: "Fewer lights",
-        safer_streets: "Safer streets",
-        fewer_transfers: "Fewer transfers",
-      },
       metrics: {
         minutes: "{{value}} min",
+        meters: "{{value}} m",
         kilometers: "{{value}} km",
         shade: "{{value}}% shade",
+        noSunExposure: "No direct sun exposure",
         sun: "{{value}} min in sun",
         signalsAvoided: "{{value}} fewer lights",
         signals: "{{value}} lights",
@@ -236,6 +260,10 @@ const resources = {
         transitSource: "Timetable sources · Transitous",
         foldBeforeBoarding: "Fold and carry before boarding",
         arrival: "Arrive at {{value}}",
+        moreTime: "+{{value}} min",
+        moreDistance: "+{{value}} km",
+        comparedWithFastest: "{{value}} vs fastest",
+        noExtraDetails: "No additional metrics",
       },
       confidence: {
         high: "High confidence",
@@ -274,6 +302,7 @@ const resources = {
           "Navigation is active. Allow background location for guidance with the screen off.",
       },
       navigation: {
+        positionMarker: "Your {{mode}} navigation position",
         literal: "{{modifier}} {{street}}",
         depart: "Head toward {{street}}",
         turn: "{{modifier}} onto {{street}}",
@@ -288,12 +317,13 @@ const resources = {
         uturn: "Make a U-turn",
       },
       accessibility: {
-        routeCard: "{{name}} route, {{duration}}, {{distance}}",
+        routeCard: "{{name}} route, {{duration}}, {{distance}}, {{details}}",
+        routeCardHint: "Double tap to show this route on the map.",
+        backToSearch: "Back to search",
         map: "Naviz map",
       },
       empty: {
-        search:
-          "No results in the coverage area. Try another address or place name.",
+        search: "No results in Israel. Try another address or place name.",
         start: "Search for a destination or choose a recent place.",
       },
       error: {
@@ -304,11 +334,10 @@ const resources = {
           "Allow location access to navigate from your current position.",
         locationUnavailable:
           "We couldn't determine your location. Check Location Services and try again.",
-        outsideCoverage:
-          "Naviz currently covers metropolitan Tel Aviv and nearby cities.",
+        outsideCoverage: "That location is outside Naviz's service area in Israel.",
         code: {
           outside_coverage:
-            "That point is outside the metropolitan Tel Aviv coverage area.",
+            "That point is outside Naviz's service area in Israel.",
           routing_unavailable:
             "Routing is temporarily unavailable. Please try again shortly.",
           no_route: "No route was found for the selected mode and preferences.",

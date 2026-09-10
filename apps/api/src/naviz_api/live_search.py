@@ -83,7 +83,6 @@ class PhotonPlaceSearch:
         category: str | None = None,
         bbox: tuple[float, float, float, float] | None = None,
     ) -> list[Place]:
-        del language
         normalized = query.strip()
         if not normalized:
             return []
@@ -93,6 +92,7 @@ class PhotonPlaceSearch:
         key = (
             "search",
             normalized.casefold(),
+            language.value,
             round(proximity.latitude, 3) if proximity else None,
             round(proximity.longitude, 3) if proximity else None,
             limit,
@@ -106,6 +106,7 @@ class PhotonPlaceSearch:
             "q": normalized,
             "limit": min(20, max(limit * 2, 8)),
             "bbox": ",".join(str(value) for value in effective_bbox),
+            "lang": language.value,
         }
         if proximity is not None:
             params.update(lat=proximity.latitude, lon=proximity.longitude)
@@ -115,15 +116,23 @@ class PhotonPlaceSearch:
         return places
 
     async def reverse(self, coordinate: Coordinate, *, language: Locale) -> Place | None:
-        del language
         self._coverage.require(coordinate)
-        key = ("reverse", round(coordinate.latitude, 5), round(coordinate.longitude, 5))
+        key = (
+            "reverse",
+            language.value,
+            round(coordinate.latitude, 5),
+            round(coordinate.longitude, 5),
+        )
         cached = self._cached(key)
         if cached is not None:
             return cast(Place | None, cached)
         payload = await self._get(
             "/reverse",
-            {"lat": coordinate.latitude, "lon": coordinate.longitude},
+            {
+                "lat": coordinate.latitude,
+                "lon": coordinate.longitude,
+                "lang": language.value,
+            },
         )
         places = self._places(payload)
         result = places[0] if places else None
@@ -146,7 +155,8 @@ class PhotonPlaceSearch:
     def _places(self, payload: dict[str, Any], category: str | None = None) -> list[Place]:
         allowed = {item.strip() for item in category.split(",")} if category else set()
         result: list[Place] = []
-        seen: set[str] = set()
+        seen_identifiers: set[str] = set()
+        seen_places: set[tuple[str, str]] = set()
         for raw_feature in _list(payload.get("features")):
             feature = _mapping(raw_feature)
             properties = _mapping(feature.get("properties"))
@@ -168,15 +178,28 @@ class PhotonPlaceSearch:
             osm_type = _string(properties.get("osm_type"), "osm")
             osm_id = _string(properties.get("osm_id"), f"{coordinate.latitude:.6f}")
             identifier = f"osm:{osm_type}:{osm_id}"
-            if identifier in seen:
+            if identifier in seen_identifiers:
                 continue
-            seen.add(identifier)
+            seen_identifiers.add(identifier)
             name = _display_name(properties)
             if not name:
                 continue
             city = _first_string(properties, "city", "town", "village", "district")
             street = _first_string(properties, "street", "locality", "county")
             subtitle = " · ".join(part for part in (street, city) if part and part != name) or None
+            # Photon can return the same real-world feature as a node, way and
+            # relation (and sometimes once per translated OSM name). Keeping
+            # all of those consumes the entire result sheet with duplicates.
+            # Use the user-visible identity as a second, stable de-duplication
+            # key while retaining genuinely different places with the same
+            # name when their locality differs.
+            semantic_key = (
+                name.casefold(),
+                (subtitle or "").casefold(),
+            )
+            if semantic_key in seen_places:
+                continue
+            seen_places.add(semantic_key)
             result.append(
                 Place(
                     id=identifier,

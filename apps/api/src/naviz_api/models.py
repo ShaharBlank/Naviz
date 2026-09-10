@@ -257,6 +257,45 @@ class RoutePlanResponse(ApiModel):
     engine_profile: str
 
 
+class ShadowSceneRequest(ApiModel):
+    encoded_polyline: Annotated[
+        str,
+        Field(
+            min_length=2,
+            max_length=300_000,
+            description=(
+                "Polyline6 route window around the visible/current position; "
+                "shadow scenes are limited to six kilometres."
+            ),
+        ),
+    ]
+    at: datetime
+    corridor_m: Annotated[float, Field(ge=50, le=500)] = 180
+
+    @model_validator(mode="after")
+    def require_timezone(self) -> ShadowSceneRequest:
+        if self.at.tzinfo is None or self.at.utcoffset() is None:
+            raise ValueError("Shadow scene time must include a UTC offset")
+        return self
+
+
+class ShadowPolygon(ApiModel):
+    rings: list[list[Coordinate]]
+
+
+class ShadowSceneResponse(ApiModel):
+    available: bool
+    at: datetime
+    solar_azimuth_degrees: float
+    solar_elevation_degrees: float
+    shadows: list[ShadowPolygon] = Field(default_factory=list)
+    high_confidence_shadows: list[ShadowPolygon] = Field(default_factory=list)
+    coverage_bbox: tuple[float, float, float, float] | None = None
+    model_version: str
+    attribution: list[str] = Field(default_factory=list)
+    warning: str | None = None
+
+
 class MobilityVehicle(ApiModel):
     provider: str
     id: str
@@ -303,6 +342,12 @@ class HistoryEntry(ApiModel):
     expires_at: datetime
 
 
+class CapabilityStatus(ApiModel):
+    available: bool
+    coverage_bbox: tuple[float, float, float, float] | None = None
+    realtime: bool = False
+
+
 class DataStatus(ApiModel):
     coverage: str
     data_version: str
@@ -310,6 +355,9 @@ class DataStatus(ApiModel):
     warmed: bool
     updated_at: datetime
     feeds: dict[str, dict[str, Any]]
+    service_coverage_bbox: tuple[float, float, float, float] | None = None
+    feature_coverage_bbox: tuple[float, float, float, float] | None = None
+    capabilities: dict[str, CapabilityStatus] = Field(default_factory=dict)
 
 
 class ProblemDetail(BaseModel):

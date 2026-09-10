@@ -1,5 +1,29 @@
 # Naviz Android releases
 
+## 0.5.0 Israel preview (version code 7)
+
+- File: `Naviz-0.5.0-israel.apk`
+- Size: 148,432,770 bytes
+- SHA-256: `E3D6B1C047173795ABC14D6432489279F908F65C83CA2F97686F53231A6A37B6`
+- Package: `app.naviz.mobile`
+- Android SDK: minimum 24, target 36
+- Expo SDK: 57
+- Backend embedded at bundle time: <https://naviz-api.onrender.com>
+
+This universal local release build contains all four Android native
+architectures. Verification confirmed version `0.5.0`, version code `7`, the
+production API URL, absence of emulator/localhost API URLs, and a valid APK v2
+signature. It is signed with the local Android debug certificate, so it is
+installable for preview and field testing but is not a Play Store release
+artifact. The hosted backend must be upgraded from metropolitan API `0.2.0` to
+the nationwide API `0.3.0` before this build can provide nationwide behavior.
+The signer certificate SHA-256 is
+`FAC61745DC0903786FB9EDE62A962B399F7348F0BB6F899B8332667591033B9C`.
+Emulator validation covered clean installation, hosted search and routing,
+walking and driving 3D navigation, direction-aware person/vehicle markers,
+synthetic GPS progress, and ten repeated live 2D/3D switches without a native
+or JavaScript crash.
+
 ## 0.4.0 (version code 6)
 
 - File: `Naviz-0.4.0-metropolitan.apk`

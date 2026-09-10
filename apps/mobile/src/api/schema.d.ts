@@ -193,6 +193,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/shadows/scene": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Shadow Scene */
+        post: operations["shadow_scene_v1_shadows_scene_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -214,6 +231,23 @@ export interface components {
              * @default false
              */
             require_step_free: boolean;
+        };
+        /** CapabilityStatus */
+        CapabilityStatus: {
+            /** Available */
+            available: boolean;
+            /** Coverage Bbox */
+            coverage_bbox?: [
+                number,
+                number,
+                number,
+                number
+            ] | null;
+            /**
+             * Realtime
+             * @default false
+             */
+            realtime: boolean;
         };
         /** Coordinate */
         Coordinate: {
@@ -251,18 +285,36 @@ export interface components {
         };
         /** DataStatus */
         DataStatus: {
+            /** Capabilities */
+            capabilities?: {
+                [key: string]: components["schemas"]["CapabilityStatus"];
+            };
             /** Coverage */
             coverage: string;
             /** Data Version */
             data_version: string;
             /** Engine Profile */
             engine_profile: string;
+            /** Feature Coverage Bbox */
+            feature_coverage_bbox?: [
+                number,
+                number,
+                number,
+                number
+            ] | null;
             /** Feeds */
             feeds: {
                 [key: string]: {
                     [key: string]: unknown;
                 };
             };
+            /** Service Coverage Bbox */
+            service_coverage_bbox?: [
+                number,
+                number,
+                number,
+                number
+            ] | null;
             /**
              * Updated At
              * Format: date-time
@@ -614,6 +666,60 @@ export interface components {
             shade_fraction?: number | null;
             /** Start Index */
             start_index: number;
+        };
+        /** ShadowPolygon */
+        ShadowPolygon: {
+            /** Rings */
+            rings: components["schemas"]["Coordinate"][][];
+        };
+        /** ShadowSceneRequest */
+        ShadowSceneRequest: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /**
+             * Corridor M
+             * @default 180
+             */
+            corridor_m: number;
+            /**
+             * Encoded Polyline
+             * @description Polyline6 route window around the visible/current position; shadow scenes are limited to six kilometres.
+             */
+            encoded_polyline: string;
+        };
+        /** ShadowSceneResponse */
+        ShadowSceneResponse: {
+            /**
+             * At
+             * Format: date-time
+             */
+            at: string;
+            /** Attribution */
+            attribution?: string[];
+            /** Available */
+            available: boolean;
+            /** Coverage Bbox */
+            coverage_bbox?: [
+                number,
+                number,
+                number,
+                number
+            ] | null;
+            /** High Confidence Shadows */
+            high_confidence_shadows?: components["schemas"]["ShadowPolygon"][];
+            /** Model Version */
+            model_version: string;
+            /** Shadows */
+            shadows?: components["schemas"]["ShadowPolygon"][];
+            /** Solar Azimuth Degrees */
+            solar_azimuth_degrees: number;
+            /** Solar Elevation Degrees */
+            solar_elevation_degrees: number;
+            /** Warning */
+            warning?: string | null;
         };
         /** TransitDetails */
         TransitDetails: {
@@ -1098,6 +1204,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Place"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    shadow_scene_v1_shadows_scene_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ShadowSceneRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShadowSceneResponse"];
                 };
             };
             /** @description Validation Error */

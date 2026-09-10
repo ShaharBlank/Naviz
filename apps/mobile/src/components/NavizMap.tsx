@@ -3,61 +3,98 @@ import {
   GeoJSONSource,
   Layer,
   Map,
-  UserLocation,
+  Marker,
+  type LightSpecification,
 } from "@maplibre/maplibre-react-native";
 import { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { decodePolyline } from "../api/polyline";
-import type { Coordinate, MobilityVehicle, RouteAlternative } from "../api/types";
+import { decodePolyline, distanceMeters } from "../api/polyline";
+import type {
+  Coordinate,
+  MobilityVehicle,
+  RouteAlternative,
+  ShadowSceneResponse,
+  TravelMode,
+} from "../api/types";
 import { colors, radius, shadow, spacing } from "../theme/tokens";
 
-const MAP_STYLE = "https://tiles.openfreemap.org/styles/liberty";
+const MAP_STYLE = "https://tiles.openfreemap.org/styles/bright";
+const ISRAEL_CENTER: Coordinate = { latitude: 31.7683, longitude: 35.2137 };
+
+export type MapDisplayMode = "2d" | "3d";
 
 interface Props {
-  route: RouteAlternative | null;
+  routes: RouteAlternative[];
+  selectedRouteId: string | null;
   userCoordinate: Coordinate | null;
+  userHeadingDegrees: number | null;
+  displayMode: MapDisplayMode;
+  shadowScene: ShadowSceneResponse | null;
+  shadowLoading: boolean;
   mobilityVehicles: MobilityVehicle[];
   following: boolean;
+  navigationActive: boolean;
+  travelMode: TravelMode;
   onRecenter: () => void;
   onOverview: () => void;
+  onDisplayModeChange: (mode: MapDisplayMode) => void;
+  onShadowTimeShift: (minutes: number) => void;
+  onShadowTimeReset: () => void;
   onMobilityVehiclePress: (vehicle: MobilityVehicle) => void;
 }
 
 function NavizMapComponent({
-  route,
+  routes,
+  selectedRouteId,
   userCoordinate,
+  userHeadingDegrees,
+  displayMode,
+  shadowScene,
+  shadowLoading,
   mobilityVehicles,
   following,
+  navigationActive,
+  travelMode,
   onRecenter,
   onOverview,
+  onDisplayModeChange,
+  onShadowTimeShift,
+  onShadowTimeReset,
   onMobilityVehiclePress,
 }: Props) {
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
+  const selectedRoute =
+    routes.find((route) => route.id === selectedRouteId) ?? routes[0] ?? null;
+  const effectiveSelectedRouteId = selectedRoute?.id ?? null;
   const geometry = useMemo(
-    () => (route ? decodePolyline(route.encoded_polyline) : []),
-    [route],
+    () => (selectedRoute ? decodePolyline(selectedRoute.encoded_polyline) : []),
+    [selectedRoute],
   );
-  const line = useMemo<GeoJSON.Feature<GeoJSON.LineString>>(
-    () => ({
-      type: "Feature" as const,
-      properties: {},
-      geometry: {
-        type: "LineString" as const,
-        coordinates: geometry.map(({ longitude, latitude }) => [longitude, latitude]),
-      },
-    }),
-    [geometry],
+  const routeLines = useMemo(
+    () => buildRouteFeatureCollection(routes, effectiveSelectedRouteId),
+    [effectiveSelectedRouteId, routes],
+  );
+  const selectedRouteLegs = useMemo(
+    () => buildRouteLegFeatureCollection(selectedRoute, travelMode),
+    [selectedRoute, travelMode],
+  );
+  const routeMarkers = useMemo(
+    () => buildRouteMarkerFeatureCollection(selectedRoute),
+    [selectedRoute],
   );
   const segments = useMemo<GeoJSON.FeatureCollection<GeoJSON.LineString>>(
     () => ({
       type: "FeatureCollection" as const,
       features:
-        route?.annotations
+        selectedRoute?.annotations
           .map((annotation) => ({
             type: "Feature" as const,
-            properties: { classification: annotation.classification },
+            properties: {
+              classification: annotation.classification,
+              selectedSide: annotation.selected_side,
+            },
             geometry: {
               type: "LineString" as const,
               coordinates: geometry
@@ -67,26 +104,28 @@ function NavizMapComponent({
           }))
           .filter((feature) => feature.geometry.coordinates.length >= 2) ?? [],
     }),
-    [geometry, route?.annotations],
+    [geometry, selectedRoute?.annotations],
   );
   const crossings = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(
     () => ({
       type: "FeatureCollection" as const,
       features:
-        route?.annotations.flatMap((annotation) => {
+        selectedRoute?.annotations.flatMap((annotation) => {
           const coordinate = geometry[annotation.start_index];
           if (!annotation.crossing_kind || !coordinate) return [];
-          return [{
-            type: "Feature" as const,
-            properties: { crossing: annotation.crossing_kind },
-            geometry: {
-              type: "Point" as const,
-              coordinates: [coordinate.longitude, coordinate.latitude],
+          return [
+            {
+              type: "Feature" as const,
+              properties: { crossing: annotation.crossing_kind },
+              geometry: {
+                type: "Point" as const,
+                coordinates: [coordinate.longitude, coordinate.latitude],
+              },
             },
-          }];
+          ];
         }) ?? [],
     }),
-    [geometry, route?.annotations],
+    [geometry, selectedRoute?.annotations],
   );
   const mobilityPoints = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(
     () => ({
@@ -107,76 +146,276 @@ function NavizMapComponent({
     }),
     [mobilityVehicles],
   );
+  const userPoint = useMemo<GeoJSON.Feature<GeoJSON.Point> | null>(
+    () =>
+      userCoordinate
+        ? {
+            type: "Feature" as const,
+            properties: {},
+            geometry: {
+              type: "Point" as const,
+              coordinates: [userCoordinate.longitude, userCoordinate.latitude],
+            },
+          }
+        : null,
+    [userCoordinate],
+  );
+  const headingLine = useMemo(
+    () => buildHeadingFeatureCollection(userCoordinate, userHeadingDegrees),
+    [userCoordinate, userHeadingDegrees],
+  );
+  const routeBearing = useMemo(
+    () => bearingNearCoordinate(geometry, userCoordinate),
+    [geometry, userCoordinate],
+  );
+  const cameraBearing =
+    userHeadingDegrees !== null && userHeadingDegrees >= 0
+      ? normalizeDegrees(userHeadingDegrees)
+      : routeBearing;
+  const mapBearing = following ? cameraBearing : isFinite(routeBearing) ? routeBearing : 0;
+  const navigationMarker = useMemo(
+    () => navigationMarkerCoordinate(geometry, userCoordinate),
+    [geometry, userCoordinate],
+  );
+  const markerRotationDegrees = navigationMarkerRotation(
+    cameraBearing,
+    following ? cameraBearing : displayMode === "3d" ? mapBearing : 0,
+  );
+  const navigationProfile = navigationCameraProfile(travelMode);
+  const navigationTarget = useMemo(
+    () => navigationCameraTarget(geometry, userCoordinate, travelMode),
+    [geometry, travelMode, userCoordinate],
+  );
+  const lightingCoordinate = userCoordinate ?? geometry[0] ?? ISRAEL_CENTER;
+  const light = useMemo(
+    () =>
+      solarStyleLight(
+        shadowScene
+          ? new Date(shadowScene.at)
+          : selectedRoute
+            ? new Date(selectedRoute.departure_at)
+            : new Date(0),
+        lightingCoordinate,
+      ),
+    [lightingCoordinate, selectedRoute, shadowScene],
+  );
+  const shadowPolygons = useMemo(
+    () => buildShadowFeatureCollection(shadowScene, false),
+    [shadowScene],
+  );
+  const highConfidenceShadowPolygons = useMemo(
+    () => buildShadowFeatureCollection(shadowScene, true),
+    [shadowScene],
+  );
+  const is3d = displayMode === "3d";
+  const rtl = i18n.resolvedLanguage === "he";
 
   return (
     <View style={styles.container} accessibilityLabel={t("accessibility.map")}>
       <Map
         style={styles.map}
         mapStyle={MAP_STYLE}
-        attributionPosition={{ top: 48, right: 8 }}
-        logoPosition={{ top: 48, left: 8 }}
+        light={light}
+        preferredFramesPerSecond={is3d ? 45 : 60}
+        attributionPosition={{ top: 64, right: 8 }}
+        logoPosition={{ top: 64, left: 8 }}
       >
-        {following ? (
-          <Camera trackUserLocation="heading" zoom={17} />
-        ) : route ? (
+        {following && userCoordinate ? (
           <Camera
-            bounds={route.bbox}
-            padding={{ top: 130, right: 40, bottom: 340, left: 40 }}
+            center={[
+              navigationTarget.longitude,
+              navigationTarget.latitude,
+            ]}
+            zoom={is3d ? navigationProfile.zoom3d : navigationProfile.zoom2d}
+            bearing={cameraBearing}
+            pitch={is3d ? navigationProfile.pitch : 0}
+            padding={{ top: 112, right: 32, bottom: 186, left: 32 }}
+            duration={420}
+          />
+        ) : selectedRoute ? (
+          <Camera
+            bounds={selectedRoute.bbox}
+            padding={{ top: 104, right: 36, bottom: 300, left: 36 }}
+            bearing={is3d ? routeBearing : 0}
+            pitch={is3d ? 50 : 0}
             duration={600}
           />
         ) : (
           <Camera
+            pitch={is3d ? 45 : 0}
             initialViewState={{
               center: userCoordinate
                 ? [userCoordinate.longitude, userCoordinate.latitude]
-                : [34.7799, 32.0733],
-              zoom: 13.5,
+                : [ISRAEL_CENTER.longitude, ISRAEL_CENTER.latitude],
+              zoom: userCoordinate ? 13.5 : 7.2,
+              pitch: is3d ? 45 : 0,
             }}
           />
         )}
-        <UserLocation animated accuracy heading />
-        {mobilityVehicles.length > 0 ? (
-          <GeoJSONSource
-            id="mobility-vehicles"
-            data={mobilityPoints}
-            onPress={(event) => {
-              const vehicleId = event.nativeEvent.features[0]?.properties?.vehicleId;
-              const vehicle = mobilityVehicles.find((item) => item.id === vehicleId);
-              if (vehicle) onMobilityVehiclePress(vehicle);
+
+        <GeoJSONSource
+          key="naviz-building-shadows"
+          id="naviz-building-shadows"
+          data={shadowPolygons}
+        >
+          <Layer
+            key="naviz-building-shadow-fill"
+            id="naviz-building-shadow-fill"
+            type="fill"
+            paint={{
+              "fill-color": "#26364D",
+              "fill-opacity": is3d ? 0.2 : 0,
+              "fill-outline-color": "rgba(30, 41, 59, 0.22)",
             }}
+          />
+        </GeoJSONSource>
+        <GeoJSONSource
+          key="naviz-high-confidence-shadows"
+          id="naviz-high-confidence-shadows"
+          data={highConfidenceShadowPolygons}
+        >
+          <Layer
+            key="naviz-high-confidence-shadow-fill"
+            id="naviz-high-confidence-shadow-fill"
+            type="fill"
+            paint={{
+              "fill-color": "#111827",
+              "fill-opacity": is3d ? 0.22 : 0,
+            }}
+          />
+        </GeoJSONSource>
+
+        <Layer
+          key="naviz-3d-buildings"
+          id="naviz-3d-buildings"
+          type="fill-extrusion"
+          source="openmaptiles"
+          source-layer="building"
+          minzoom={14.5}
+          filter={[
+            "all",
+            ["has", "render_height"],
+            ["has", "render_min_height"],
+          ]}
+          paint={{
+            "fill-extrusion-base": ["get", "render_min_height"],
+            "fill-extrusion-height": ["get", "render_height"],
+            "fill-extrusion-color": [
+              "interpolate",
+              ["linear"],
+              ["get", "render_height"],
+              0,
+              "#F4F7FA",
+              24,
+              "#DCE3EB",
+              80,
+              "#B9C5D3",
+              180,
+              "#8C9AAA",
+            ],
+            "fill-extrusion-opacity": is3d ? 0.82 : 0,
+            "fill-extrusion-vertical-gradient": true,
+          }}
+        />
+
+        {routeLines.features.length > 0 ? (
+          <GeoJSONSource
+            key="route-alternatives"
+            id="route-alternatives"
+            data={routeLines}
           >
             <Layer
-              id="mobility-vehicle-points"
-              type="circle"
+              key="route-alternative-borders"
+              id="route-alternative-borders"
+              type="line"
+              filter={["==", ["get", "selected"], false]}
               paint={{
-                "circle-color": colors.primary,
-                "circle-radius": 7,
-                "circle-stroke-color": colors.surface,
-                "circle-stroke-width": 3,
+                "line-color": colors.surface,
+                "line-width": 8,
+                "line-opacity": 0.62,
               }}
+              layout={{ "line-cap": "round", "line-join": "round" }}
+            />
+            <Layer
+              key="route-alternative-lines"
+              id="route-alternative-lines"
+              type="line"
+              filter={["==", ["get", "selected"], false]}
+              paint={{
+                "line-color": "#64748B",
+                "line-width": 4,
+                "line-opacity": 0.62,
+                "line-dasharray": [2, 1.5],
+              }}
+              layout={{ "line-cap": "round", "line-join": "round" }}
             />
           </GeoJSONSource>
         ) : null}
-        {route && geometry.length >= 2 ? (
+
+        {selectedRouteLegs.features.length > 0 ? (
+          <GeoJSONSource
+            key="selected-route-legs"
+            id="selected-route-legs"
+            data={selectedRouteLegs}
+          >
+            <Layer
+              key="selected-route-glow"
+              id="selected-route-glow"
+              type="line"
+              paint={{
+                "line-color": ["get", "color"],
+                "line-width": is3d ? 18 : 12,
+                "line-opacity": is3d ? 0.2 : 0,
+                "line-blur": 5,
+              }}
+              layout={{ "line-cap": "round", "line-join": "round" }}
+            />
+            <Layer
+              key="selected-route-border"
+              id="selected-route-border"
+              type="line"
+              paint={{
+                "line-color": colors.surface,
+                "line-width": is3d ? 12 : 11,
+                "line-opacity": 0.96,
+              }}
+              layout={{ "line-cap": "round", "line-join": "round" }}
+            />
+            <Layer
+              key="selected-route-lines"
+              id="selected-route-lines"
+              type="line"
+              filter={["!=", ["get", "mode"], "transit"]}
+              paint={{
+                "line-color": ["get", "color"],
+                "line-width": is3d ? 7.5 : 7,
+              }}
+              layout={{ "line-cap": "round", "line-join": "round" }}
+            />
+            <Layer
+              key="selected-route-transit-lines"
+              id="selected-route-transit-lines"
+              type="line"
+              filter={["==", ["get", "mode"], "transit"]}
+              paint={{
+                "line-color": ["get", "color"],
+                "line-width": is3d ? 8 : 7,
+                "line-dasharray": [2.2, 0.8],
+              }}
+              layout={{ "line-cap": "round", "line-join": "round" }}
+            />
+          </GeoJSONSource>
+        ) : null}
+
+        {selectedRoute && geometry.length >= 2 ? (
           <>
-            <GeoJSONSource id="route-border" data={line}>
+            <GeoJSONSource
+              key="route-segments"
+              id="route-segments"
+              data={segments}
+            >
               <Layer
-                id="route-border-line"
-                type="line"
-                paint={{ "line-color": colors.surface, "line-width": 10, "line-opacity": 0.95 }}
-                layout={{ "line-cap": "round" }}
-              />
-            </GeoJSONSource>
-            <GeoJSONSource id="route" data={line}>
-              <Layer
-                id="route-line"
-                type="line"
-                paint={{ "line-color": colors.primary, "line-width": 7 }}
-                layout={{ "line-cap": "round" }}
-              />
-            </GeoJSONSource>
-            <GeoJSONSource id="route-segments" data={segments}>
-              <Layer
+                key="route-shade-lines"
                 id="route-shade-lines"
                 type="line"
                 filter={["==", ["get", "classification"], "shade"]}
@@ -184,22 +423,37 @@ function NavizMapComponent({
                 layout={{ "line-cap": "round" }}
               />
               <Layer
+                key="route-mixed-lines"
                 id="route-mixed-lines"
                 type="line"
                 filter={["==", ["get", "classification"], "mixed"]}
-                paint={{ "line-color": colors.mixed, "line-width": 7, "line-dasharray": [2, 1] }}
+                paint={{
+                  "line-color": colors.mixed,
+                  "line-width": 7,
+                  "line-dasharray": [2, 1],
+                }}
                 layout={{ "line-cap": "round" }}
               />
               <Layer
+                key="route-sun-lines"
                 id="route-sun-lines"
                 type="line"
                 filter={["==", ["get", "classification"], "sun"]}
-                paint={{ "line-color": colors.sun, "line-width": 7, "line-dasharray": [0.5, 1.5] }}
+                paint={{
+                  "line-color": colors.sun,
+                  "line-width": 7,
+                  "line-dasharray": [0.5, 1.5],
+                }}
                 layout={{ "line-cap": "round" }}
               />
             </GeoJSONSource>
-            <GeoJSONSource id="route-crossings" data={crossings}>
+            <GeoJSONSource
+              key="route-crossings"
+              id="route-crossings"
+              data={crossings}
+            >
               <Layer
+                key="route-crossing-points"
                 id="route-crossing-points"
                 type="circle"
                 paint={{
@@ -212,9 +466,208 @@ function NavizMapComponent({
             </GeoJSONSource>
           </>
         ) : null}
+
+        {routeMarkers.features.length > 0 ? (
+          <GeoJSONSource
+            key="route-markers"
+            id="route-markers"
+            data={routeMarkers}
+          >
+            <Layer
+              key="route-handoff-markers"
+              id="route-handoff-markers"
+              type="circle"
+              filter={["==", ["get", "kind"], "handoff"]}
+              paint={{
+                "circle-color": colors.surface,
+                "circle-radius": 7,
+                "circle-stroke-color": ["get", "color"],
+                "circle-stroke-width": 3,
+              }}
+            />
+            <Layer
+              key="route-destination-marker"
+              id="route-destination-marker"
+              type="circle"
+              filter={["==", ["get", "kind"], "destination"]}
+              paint={{
+                "circle-color": colors.ink,
+                "circle-radius": 8,
+                "circle-stroke-color": colors.surface,
+                "circle-stroke-width": 3,
+              }}
+            />
+          </GeoJSONSource>
+        ) : null}
+
+        {mobilityVehicles.length > 0 ? (
+          <GeoJSONSource
+            key="mobility-vehicles"
+            id="mobility-vehicles"
+            data={mobilityPoints}
+            onPress={(event) => {
+              const vehicleId =
+                event.nativeEvent.features[0]?.properties?.vehicleId;
+              const vehicle = mobilityVehicles.find(
+                (item) => item.id === vehicleId,
+              );
+              if (vehicle) onMobilityVehiclePress(vehicle);
+            }}
+          >
+            <Layer
+              key="mobility-vehicle-points"
+              id="mobility-vehicle-points"
+              type="circle"
+              paint={{
+                "circle-color": colors.primary,
+                "circle-radius": 7,
+                "circle-stroke-color": colors.surface,
+                "circle-stroke-width": 3,
+              }}
+            />
+          </GeoJSONSource>
+        ) : null}
+
+        {navigationActive && navigationMarker ? (
+          <Marker
+            key="naviz-navigation-avatar"
+            id="naviz-navigation-avatar"
+            lngLat={[navigationMarker.longitude, navigationMarker.latitude]}
+            anchor="center"
+            pointerEvents="none"
+          >
+            <NavigationAvatar
+              mode={travelMode}
+              rotationDegrees={markerRotationDegrees}
+              accessibilityLabel={t("navigation.positionMarker", {
+                mode: t(`mode.${travelMode}`),
+              })}
+            />
+          </Marker>
+        ) : userPoint ? (
+          <>
+            {headingLine.features.length > 0 ? (
+              <GeoJSONSource
+                key="naviz-user-heading"
+                id="naviz-user-heading"
+                data={headingLine}
+              >
+                <Layer
+                  key="naviz-user-heading-line"
+                  id="naviz-user-heading-line"
+                  type="line"
+                  paint={{
+                    "line-color": colors.primaryDark,
+                    "line-width": 5,
+                    "line-opacity": 0.9,
+                  }}
+                  layout={{ "line-cap": "round" }}
+                />
+              </GeoJSONSource>
+            ) : null}
+            <GeoJSONSource
+              key="naviz-user-location"
+              id="naviz-user-location"
+              data={userPoint}
+            >
+              <Layer
+                key="naviz-user-location-halo"
+                id="naviz-user-location-halo"
+                type="circle"
+                paint={{
+                  "circle-color": "rgba(91, 75, 219, 0.18)",
+                  "circle-radius": 15,
+                  "circle-stroke-width": 0,
+                }}
+              />
+              <Layer
+                key="naviz-user-location-puck"
+                id="naviz-user-location-puck"
+                type="circle"
+                paint={{
+                  "circle-color": colors.primary,
+                  "circle-radius": 7.5,
+                  "circle-stroke-color": colors.surface,
+                  "circle-stroke-width": 3,
+                }}
+              />
+            </GeoJSONSource>
+          </>
+        ) : null}
       </Map>
-      <View style={styles.mapControls}>
-        {route && !following ? (
+
+      {is3d &&
+      selectedRoute &&
+      !navigationActive &&
+      (shadowLoading || shadowScene?.available) ? (
+        <View style={styles.shadowTimePanel}>
+          <View style={[styles.shadowStatus, rtl && styles.rowReverse]}>
+            <View
+              style={[
+                styles.shadowStatusDot,
+                shadowScene?.available && styles.shadowStatusDotReady,
+              ]}
+            />
+            <Text style={[styles.lightingLabel, rtl && styles.rtlText]}>
+              {shadowLoading
+                ? t("shadow3d.loading")
+                : shadowScene?.available
+                  ? shadowScene.solar_elevation_degrees <= 0
+                    ? t("shadow3d.night")
+                    : t("shadow3d.scene", {
+                        value: new Date(shadowScene.at).toLocaleTimeString(
+                          rtl ? "he-IL" : "en-IL",
+                          {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: false,
+                            timeZone: "Asia/Jerusalem",
+                          },
+                        ),
+                      })
+                  : t("shadow3d.unavailable")}
+            </Text>
+          </View>
+          <View style={[styles.shadowTimeControls, rtl && styles.rowReverse]}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("shadow3d.earlier")}
+              onPress={() => onShadowTimeShift(-15)}
+              style={styles.shadowTimeButton}
+            >
+              <Text style={styles.shadowTimeButtonText}>−15</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("shadow3d.resetTime")}
+              onPress={onShadowTimeReset}
+              style={styles.shadowTimeReset}
+            >
+              <Text style={styles.shadowTimeResetText}>{t("shadow3d.reset")}</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={t("shadow3d.later")}
+              onPress={() => onShadowTimeShift(15)}
+              style={styles.shadowTimeButton}
+            >
+              <Text style={styles.shadowTimeButtonText}>+15</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
+      <View
+        style={[
+          styles.mapControls,
+          navigationActive && styles.mapControlsWhileNavigating,
+        ]}
+      >
+        <MapModeToggle
+          value={displayMode}
+          onChange={onDisplayModeChange}
+        />
+        {selectedRoute && !following ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={t("overview")}
@@ -237,17 +690,565 @@ function NavizMapComponent({
   );
 }
 
+export function MapModeToggle({
+  value,
+  onChange,
+}: {
+  value: MapDisplayMode;
+  onChange: (value: MapDisplayMode) => void;
+}) {
+  const { t } = useTranslation();
+  const nextValue: MapDisplayMode = value === "3d" ? "2d" : "3d";
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={nextValue === "3d" ? t("map3d") : t("map2d")}
+      accessibilityHint={t("mapDisplayMode")}
+      accessibilityState={{ selected: value === "3d" }}
+      onPress={() => onChange(nextValue)}
+      style={styles.mapButton}
+    >
+      <Text style={styles.mapModeButtonText}>{nextValue.toUpperCase()}</Text>
+    </Pressable>
+  );
+}
+
+export function buildRouteFeatureCollection(
+  routes: RouteAlternative[],
+  selectedRouteId: string | null,
+): GeoJSON.FeatureCollection<GeoJSON.LineString> {
+  return {
+    type: "FeatureCollection",
+    features: routes.flatMap((route) => {
+      const coordinates = decodePolyline(route.encoded_polyline).map(
+        ({ longitude, latitude }) => [longitude, latitude],
+      );
+      if (coordinates.length < 2) return [];
+      return [
+        {
+          type: "Feature" as const,
+          properties: {
+            routeId: route.id,
+            selected: route.id === selectedRouteId,
+          },
+          geometry: { type: "LineString" as const, coordinates },
+        },
+      ];
+    }),
+  };
+}
+
+const ROUTE_COLORS: Record<TravelMode, string> = {
+  walk: "#5B4BDB",
+  bike: "#0F9D76",
+  scooter: "#0284C7",
+  car: "#2563EB",
+  motorcycle: "#7C3AED",
+  truck: "#334155",
+  transit: "#E11D48",
+  bike_transit: "#0F9D76",
+  scooter_transit: "#0284C7",
+  rental_transit: "#7C3AED",
+};
+
+export function buildRouteLegFeatureCollection(
+  route: RouteAlternative | null,
+  fallbackMode: TravelMode = "walk",
+): GeoJSON.FeatureCollection<GeoJSON.LineString> {
+  if (!route) return { type: "FeatureCollection", features: [] };
+  const legs = route.legs.length
+    ? route.legs.map((leg) => ({ mode: leg.mode, polyline: leg.encoded_polyline }))
+    : [{ mode: fallbackMode, polyline: route.encoded_polyline }];
+  return {
+    type: "FeatureCollection",
+    features: legs.flatMap((leg, index) => {
+      const coordinates = decodePolyline(leg.polyline).map(
+        ({ longitude, latitude }) => [longitude, latitude],
+      );
+      if (coordinates.length < 2) return [];
+      return [
+        {
+          type: "Feature" as const,
+          properties: {
+            index,
+            mode: leg.mode,
+            color: ROUTE_COLORS[leg.mode],
+          },
+          geometry: { type: "LineString" as const, coordinates },
+        },
+      ];
+    }),
+  };
+}
+
+export function buildRouteMarkerFeatureCollection(
+  route: RouteAlternative | null,
+): GeoJSON.FeatureCollection<GeoJSON.Point> {
+  if (!route) return { type: "FeatureCollection", features: [] };
+  const legs = route.legs.flatMap((leg) => {
+    const geometry = decodePolyline(leg.encoded_polyline);
+    const coordinate = geometry.at(-1);
+    return coordinate ? [{ coordinate, mode: leg.mode }] : [];
+  });
+  const routeEnd = decodePolyline(route.encoded_polyline).at(-1);
+  const markerLegs = legs.length
+    ? legs
+    : routeEnd
+      ? [{ coordinate: routeEnd, mode: "walk" as TravelMode }]
+      : [];
+  return {
+    type: "FeatureCollection",
+    features: markerLegs.map(({ coordinate, mode }, index) => ({
+      type: "Feature" as const,
+      properties: {
+        kind: index === markerLegs.length - 1 ? "destination" : "handoff",
+        color: ROUTE_COLORS[mode],
+      },
+      geometry: {
+        type: "Point" as const,
+        coordinates: [coordinate.longitude, coordinate.latitude],
+      },
+    })),
+  };
+}
+
+export function buildHeadingFeatureCollection(
+  coordinate: Coordinate | null,
+  headingDegrees: number | null,
+): GeoJSON.FeatureCollection<GeoJSON.LineString> {
+  if (!coordinate || headingDegrees === null || headingDegrees < 0) {
+    return { type: "FeatureCollection", features: [] };
+  }
+  const heading = degreesToRadians(normalizeDegrees(headingDegrees));
+  const distanceM = 22;
+  const latitudeDelta = (distanceM * Math.cos(heading)) / 111_320;
+  const longitudeScale = Math.max(
+    0.1,
+    Math.cos(degreesToRadians(coordinate.latitude)),
+  );
+  const longitudeDelta =
+    (distanceM * Math.sin(heading)) / (111_320 * longitudeScale);
+  return {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "LineString",
+          coordinates: [
+            [coordinate.longitude, coordinate.latitude],
+            [
+              coordinate.longitude + longitudeDelta,
+              coordinate.latitude + latitudeDelta,
+            ],
+          ],
+        },
+      },
+    ],
+  };
+}
+
+export type NavigationMarkerKind =
+  | "person"
+  | "two_wheeler"
+  | "car"
+  | "truck"
+  | "transit";
+
+export function navigationMarkerKind(mode: TravelMode): NavigationMarkerKind {
+  if (mode === "walk") return "person";
+  if (mode === "bike" || mode === "scooter" || mode === "motorcycle") {
+    return "two_wheeler";
+  }
+  if (mode === "truck") return "truck";
+  if (mode === "transit" || mode.endsWith("_transit")) return "transit";
+  return "car";
+}
+
+export function navigationMarkerRotation(
+  headingDegrees: number,
+  mapBearingDegrees: number,
+): number {
+  return normalizeSignedDegrees(headingDegrees - mapBearingDegrees);
+}
+
+export function navigationMarkerCoordinate(
+  geometry: Coordinate[],
+  userCoordinate: Coordinate | null,
+  maximumSnapDistanceM = 45,
+): Coordinate | null {
+  if (!userCoordinate || geometry.length < 2) return userCoordinate;
+  const longitudeScale = Math.max(
+    0.1,
+    Math.cos(degreesToRadians(userCoordinate.latitude)),
+  );
+  let bestCoordinate = userCoordinate;
+  let bestDistanceM = Number.POSITIVE_INFINITY;
+
+  for (let index = 0; index < geometry.length - 1; index += 1) {
+    const start = geometry[index];
+    const end = geometry[index + 1];
+    if (!start || !end) continue;
+    const startX = (start.longitude - userCoordinate.longitude) * longitudeScale;
+    const startY = start.latitude - userCoordinate.latitude;
+    const endX = (end.longitude - userCoordinate.longitude) * longitudeScale;
+    const endY = end.latitude - userCoordinate.latitude;
+    const deltaX = endX - startX;
+    const deltaY = endY - startY;
+    const lengthSquared = deltaX * deltaX + deltaY * deltaY;
+    const ratio =
+      lengthSquared <= Number.EPSILON
+        ? 0
+        : clamp(-(startX * deltaX + startY * deltaY) / lengthSquared, 0, 1);
+    const candidate: Coordinate = {
+      latitude: start.latitude + (end.latitude - start.latitude) * ratio,
+      longitude:
+        start.longitude + (end.longitude - start.longitude) * ratio,
+    };
+    const distanceM = distanceMeters(userCoordinate, candidate);
+    if (distanceM < bestDistanceM) {
+      bestDistanceM = distanceM;
+      bestCoordinate = candidate;
+    }
+  }
+
+  return bestDistanceM <= maximumSnapDistanceM ? bestCoordinate : userCoordinate;
+}
+
+function NavigationAvatar({
+  mode,
+  rotationDegrees,
+  accessibilityLabel,
+}: {
+  mode: TravelMode;
+  rotationDegrees: number;
+  accessibilityLabel: string;
+}) {
+  const kind = navigationMarkerKind(mode);
+  const accent = ROUTE_COLORS[mode];
+  return (
+    <View
+      accessible
+      accessibilityRole="image"
+      accessibilityLabel={accessibilityLabel}
+      style={[
+        styles.navigationAvatar,
+        { transform: [{ rotate: `${rotationDegrees}deg` }] },
+      ]}
+    >
+      <View style={[styles.navigationAvatarHalo, { borderColor: accent }]} />
+      <View style={[styles.navigationAvatarNose, { borderBottomColor: accent }]} />
+      {kind === "person" ? (
+        <View style={styles.personMarker}>
+          <View style={[styles.personHead, { backgroundColor: accent }]} />
+          <View style={[styles.personBody, { backgroundColor: accent }]} />
+          <View style={[styles.personArms, { backgroundColor: accent }]} />
+          <View style={styles.personLegs}>
+            <View style={[styles.personLeg, { backgroundColor: accent }]} />
+            <View style={[styles.personLeg, { backgroundColor: accent }]} />
+          </View>
+        </View>
+      ) : kind === "two_wheeler" ? (
+        <View style={styles.twoWheelerMarker}>
+          <View style={[styles.wheel, { borderColor: accent }]} />
+          <View style={[styles.twoWheelerBody, { backgroundColor: accent }]} />
+          <View style={[styles.wheel, { borderColor: accent }]} />
+        </View>
+      ) : (
+        <View
+          style={[
+            styles.vehicleMarker,
+            kind === "truck" && styles.truckMarker,
+            kind === "transit" && styles.transitMarker,
+            { backgroundColor: accent },
+          ]}
+        >
+          <View style={styles.vehicleWindshield} />
+          <View style={styles.vehicleRoof} />
+          <View style={styles.vehicleLights}>
+            <View style={styles.vehicleLight} />
+            <View style={styles.vehicleLight} />
+          </View>
+        </View>
+      )}
+    </View>
+  );
+}
+
+export interface NavigationCameraProfile {
+  zoom2d: number;
+  zoom3d: number;
+  pitch: number;
+  lookAheadM: number;
+}
+
+export function navigationCameraProfile(
+  mode: TravelMode,
+): NavigationCameraProfile {
+  if (mode === "walk") {
+    return { zoom2d: 18, zoom3d: 17.95, pitch: 55, lookAheadM: 70 };
+  }
+  if (mode === "bike" || mode === "scooter") {
+    return { zoom2d: 17.5, zoom3d: 17.5, pitch: 54, lookAheadM: 125 };
+  }
+  if (mode === "transit" || mode.endsWith("_transit")) {
+    return { zoom2d: 16.6, zoom3d: 16.9, pitch: 50, lookAheadM: 260 };
+  }
+  return { zoom2d: 17.2, zoom3d: 17.05, pitch: 54, lookAheadM: 190 };
+}
+
+export function navigationCameraTarget(
+  geometry: Coordinate[],
+  userCoordinate: Coordinate | null,
+  mode: TravelMode,
+): Coordinate {
+  if (!userCoordinate || geometry.length < 2) {
+    return userCoordinate ?? geometry[0] ?? ISRAEL_CENTER;
+  }
+  let nearestIndex = 0;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+  geometry.forEach((coordinate, index) => {
+    const distance = distanceMeters(userCoordinate, coordinate);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearestIndex = index;
+    }
+  });
+  const lookAheadM = navigationCameraProfile(mode).lookAheadM;
+  let travelledM = 0;
+  let target = geometry[nearestIndex] ?? userCoordinate;
+  for (let index = nearestIndex; index < geometry.length - 1; index += 1) {
+    const current = geometry[index];
+    const next = geometry[index + 1];
+    if (!current || !next) break;
+    const segmentM = distanceMeters(current, next);
+    if (segmentM <= 0) continue;
+    if (travelledM + segmentM >= lookAheadM) {
+      const ratio = clamp((lookAheadM - travelledM) / segmentM, 0, 1);
+      return {
+        latitude: current.latitude + (next.latitude - current.latitude) * ratio,
+        longitude:
+          current.longitude + (next.longitude - current.longitude) * ratio,
+      };
+    }
+    travelledM += segmentM;
+    target = next;
+  }
+  return target;
+}
+
+export function buildShadowFeatureCollection(
+  scene: ShadowSceneResponse | null,
+  highConfidence: boolean,
+): GeoJSON.FeatureCollection<GeoJSON.Polygon> {
+  const polygons = highConfidence
+    ? scene?.high_confidence_shadows
+    : scene?.shadows;
+  return {
+    type: "FeatureCollection",
+    features:
+      polygons?.map((polygon, index) => ({
+        type: "Feature" as const,
+        properties: { confidence: highConfidence ? "high" : "modeled", index },
+        geometry: {
+          type: "Polygon" as const,
+          coordinates: polygon.rings.map((ring) =>
+            ring.map((point) => [point.longitude, point.latitude]),
+          ),
+        },
+      })) ?? [],
+  };
+}
+
+export function solarStyleLight(
+  at: Date,
+  coordinate: Coordinate,
+): LightSpecification {
+  const millisecondsPerDay = 86_400_000;
+  const julianDay = at.getTime() / millisecondsPerDay + 2_440_587.5;
+  const daysSinceEpoch = julianDay - 2_451_545;
+  const meanLongitude = normalizeDegrees(280.46 + 0.9856474 * daysSinceEpoch);
+  const meanAnomaly = normalizeDegrees(357.528 + 0.9856003 * daysSinceEpoch);
+  const anomalyRadians = degreesToRadians(meanAnomaly);
+  const eclipticLongitude = normalizeDegrees(
+    meanLongitude +
+      1.915 * Math.sin(anomalyRadians) +
+      0.02 * Math.sin(2 * anomalyRadians),
+  );
+  const obliquity = 23.439 - 0.0000004 * daysSinceEpoch;
+  const eclipticRadians = degreesToRadians(eclipticLongitude);
+  const obliquityRadians = degreesToRadians(obliquity);
+  const rightAscension = normalizeDegrees(
+    radiansToDegrees(
+      Math.atan2(
+        Math.cos(obliquityRadians) * Math.sin(eclipticRadians),
+        Math.cos(eclipticRadians),
+      ),
+    ),
+  );
+  const declination = Math.asin(
+    Math.sin(obliquityRadians) * Math.sin(eclipticRadians),
+  );
+  const siderealTime = normalizeDegrees(
+    280.46061837 +
+      360.98564736629 * (julianDay - 2_451_545) +
+      coordinate.longitude,
+  );
+  const hourAngle = degreesToRadians(
+    normalizeSignedDegrees(siderealTime - rightAscension),
+  );
+  const latitude = degreesToRadians(coordinate.latitude);
+  const elevation = radiansToDegrees(
+    Math.asin(
+      Math.sin(latitude) * Math.sin(declination) +
+        Math.cos(latitude) * Math.cos(declination) * Math.cos(hourAngle),
+    ),
+  );
+  const azimuth = normalizeDegrees(
+    radiansToDegrees(
+      Math.atan2(
+        Math.sin(hourAngle),
+        Math.cos(hourAngle) * Math.sin(latitude) -
+          Math.tan(declination) * Math.cos(latitude),
+      ),
+    ) + 180,
+  );
+  const polarAngle = clamp(90 - elevation, 15, 85);
+  const daylight = elevation > 0;
+  return {
+    anchor: "map",
+    position: [1.5, azimuth, polarAngle],
+    color: daylight ? (elevation < 12 ? "#FFD5A3" : "#FFF8E7") : "#DCE6FF",
+    intensity: daylight ? 0.55 : 0.25,
+  };
+}
+
+function bearingNearCoordinate(
+  geometry: Coordinate[],
+  currentCoordinate: Coordinate | null,
+): number {
+  let startIndex = 0;
+  if (currentCoordinate) {
+    let nearestDistance = Number.POSITIVE_INFINITY;
+    geometry.forEach((coordinate, index) => {
+      const distance = distanceMeters(currentCoordinate, coordinate);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        startIndex = index;
+      }
+    });
+  }
+  const first = geometry[startIndex] ?? geometry[0];
+  const second = geometry
+    .slice(startIndex + 1)
+    .find(
+      (coordinate) =>
+        first &&
+        (coordinate.latitude !== first.latitude ||
+          coordinate.longitude !== first.longitude),
+    );
+  if (!first || !second) return 0;
+  const latitude1 = degreesToRadians(first.latitude);
+  const latitude2 = degreesToRadians(second.latitude);
+  const longitudeDelta = degreesToRadians(second.longitude - first.longitude);
+  const y = Math.sin(longitudeDelta) * Math.cos(latitude2);
+  const x =
+    Math.cos(latitude1) * Math.sin(latitude2) -
+    Math.sin(latitude1) * Math.cos(latitude2) * Math.cos(longitudeDelta);
+  return normalizeDegrees(radiansToDegrees(Math.atan2(y, x)));
+}
+
+function degreesToRadians(value: number): number {
+  return (value * Math.PI) / 180;
+}
+
+function radiansToDegrees(value: number): number {
+  return (value * 180) / Math.PI;
+}
+
+function normalizeDegrees(value: number): number {
+  return ((value % 360) + 360) % 360;
+}
+
+function normalizeSignedDegrees(value: number): number {
+  return ((value + 540) % 360) - 180;
+}
+
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
 export const NavizMap = memo(NavizMapComponent);
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#E5E7EB" },
   map: { flex: 1 },
+  rowReverse: { flexDirection: "row-reverse" },
+  rtlText: { textAlign: "right", writingDirection: "rtl" },
+  shadowTimePanel: {
+    position: "absolute",
+    top: 112,
+    left: spacing.md,
+    maxWidth: 236,
+    gap: spacing.xs,
+    padding: spacing.xs,
+    borderRadius: radius.md,
+    backgroundColor: "rgba(255,255,255,0.94)",
+    ...shadow,
+  },
+  shadowStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingHorizontal: spacing.xs,
+    minHeight: 28,
+  },
+  shadowStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.muted,
+  },
+  shadowStatusDotReady: { backgroundColor: colors.success },
+  lightingLabel: {
+    flexShrink: 1,
+    color: colors.ink,
+    fontSize: 11,
+    lineHeight: 14,
+    fontWeight: "800",
+  },
+  shadowTimeControls: {
+    flexDirection: "row",
+    gap: spacing.xs,
+    alignItems: "center",
+  },
+  shadowTimeButton: {
+    minWidth: 48,
+    minHeight: 44,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceElevated,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shadowTimeButtonText: { color: colors.primaryDark, fontWeight: "900" },
+  shadowTimeReset: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: radius.sm,
+    backgroundColor: colors.surfaceElevated,
+    paddingHorizontal: spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shadowTimeResetText: { color: colors.ink, fontSize: 11, fontWeight: "800" },
   mapControls: {
     position: "absolute",
     right: spacing.md,
-    bottom: 250,
+    top: 112,
     gap: spacing.sm,
   },
+  mapControlsWhileNavigating: { top: 172 },
   mapButton: {
     width: 48,
     height: 48,
@@ -258,4 +1259,93 @@ const styles = StyleSheet.create({
     ...shadow,
   },
   mapButtonText: { color: colors.primaryDark, fontSize: 24, fontWeight: "800" },
+  mapModeButtonText: {
+    color: colors.primaryDark,
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 0.4,
+  },
+  navigationAvatar: {
+    width: 52,
+    height: 52,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  navigationAvatarHalo: {
+    position: "absolute",
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 3,
+    backgroundColor: "rgba(255,255,255,0.9)",
+    ...shadow,
+  },
+  navigationAvatarNose: {
+    position: "absolute",
+    top: -2,
+    width: 0,
+    height: 0,
+    borderLeftWidth: 7,
+    borderRightWidth: 7,
+    borderBottomWidth: 12,
+    borderLeftColor: "transparent",
+    borderRightColor: "transparent",
+  },
+  vehicleMarker: {
+    width: 22,
+    height: 31,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: colors.surface,
+    alignItems: "center",
+    paddingTop: 4,
+  },
+  truckMarker: { width: 24, height: 33, borderRadius: 5 },
+  transitMarker: { width: 25, height: 34, borderRadius: 6 },
+  vehicleWindshield: {
+    width: 14,
+    height: 7,
+    borderRadius: 3,
+    backgroundColor: "rgba(224,242,254,0.92)",
+  },
+  vehicleRoof: {
+    flex: 1,
+    width: 10,
+    marginVertical: 2,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.25)",
+  },
+  vehicleLights: {
+    width: 15,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingBottom: 2,
+  },
+  vehicleLight: {
+    width: 4,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: "#FEF3C7",
+  },
+  personMarker: { width: 24, height: 34, alignItems: "center" },
+  personHead: { width: 9, height: 9, borderRadius: 5 },
+  personBody: { width: 7, height: 13, borderRadius: 4, marginTop: 1 },
+  personArms: {
+    position: "absolute",
+    top: 13,
+    width: 21,
+    height: 5,
+    borderRadius: 3,
+  },
+  personLegs: { flexDirection: "row", gap: 4 },
+  personLeg: { width: 5, height: 10, borderRadius: 3 },
+  twoWheelerMarker: { width: 20, height: 35, alignItems: "center" },
+  wheel: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 3,
+    backgroundColor: colors.surface,
+  },
+  twoWheelerBody: { width: 6, height: 11, borderRadius: 3 },
 });

@@ -1,6 +1,6 @@
 # Deployment
 
-## Current metropolitan deployment
+## Current nationwide-beta deployment
 
 - API: <https://naviz-api.onrender.com>
 - API health: <https://naviz-api.onrender.com/health>
@@ -27,9 +27,9 @@ copy and its checksum are documented in `artifacts/release/README.md`.
 4. Configure lawful feeds as comma-separated
    `provider|discovery_url|operator_deep_link` entries in `NAVIZ_GBFS_FEEDS`.
 5. Keep `NAVIZ_LIVE_PROVIDERS=true` and pin `NAVIZ_DATA_BUNDLE` to the deployed
-   regional integration version. Production startup fails if a required provider
+   nationwide integration version. Production startup fails if a required provider
    URL is absent, so it cannot silently fall back to test fixtures.
-6. Set `NAVIZ_FEATURE_BUNDLE_PATH=/app/apps/api/data/metro-osm-features.sqlite3`.
+6. Set `NAVIZ_FEATURE_BUNDLE_PATH=/app/apps/api/data/israel-osm-features.sqlite3`.
    The bundled SQLite/RTree extract owns shade and traffic-signal lookup during
    requests; Overpass remains an offline refresh/fallback source only.
 
@@ -60,12 +60,17 @@ and Android remain the zero-cost paths.
 The repository contains the public EAS project ID needed for reproducible builds,
 but does not contain signing keys, provider secrets, or a fake live-data URL.
 
-## Regional provider contract
+## Nationwide provider contract
 
-The hosted profile uses Photon for regional search, Valhalla for street routes,
+The hosted profile uses Photon for nationwide search, Valhalla for street routes,
 the pinned Geofabrik/OSM feature bundle for shade and signals, and
 Transitous/MOTIS for scheduled transit. External calls include a named contact
-User-Agent, are cached, remain within the metropolitan coverage boundary, and
+User-Agent, are cached, remain within the declared Israel service box, and
 produce explicit service errors instead of returning fixture routes when a
 provider is unavailable. Transitous deployment also requires a publicly licensed
 source repository and visible source attribution in the mobile route card.
+
+The image downloads the exact OSM-derived feature artifact named in
+`infra/data-bundles/israel-osm-features-2026-08-16.json` and verifies both archive
+and database SHA-256 values before it can build. Render never downloads Overpass
+data or rebuilds spatial indexes during a route request.

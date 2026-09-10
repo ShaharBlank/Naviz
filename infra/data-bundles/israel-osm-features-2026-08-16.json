@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "bundle_id": "israel-osm-features-2026-08-16",
+  "url": "https://github.com/ShaharBlank/Naviz/releases/download/data-israel-2026-08-16/israel-osm-features-20260816.zip",
+  "archive_sha256": "fb663559621b53d372efc99ebcf6b23f80123daf10e7f0eeb9432f96d8fb0bd5",
+  "archive_member": "israel-osm-features.sqlite3",
+  "database_sha256": "dbfb0e2732a1bae468eb79908c5d250166f663bf104ffa4319519746acf01b20"
+}

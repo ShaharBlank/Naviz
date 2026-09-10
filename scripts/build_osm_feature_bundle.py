@@ -1,4 +1,4 @@
-"""Build Naviz's compact metropolitan building and traffic-signal index.
+"""Build Naviz's compact regional building and traffic-signal index.
 
 The input is a pinned Geofabrik ``.osm.pbf`` extract. PyOsmium is deliberately
 kept out of the API runtime; run this script with ``uv run --with osmium``.
@@ -7,6 +7,7 @@ kept out of the API runtime; run this script with ``uv run --with osmium``.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sqlite3
 import struct
@@ -15,7 +16,7 @@ from typing import Any
 
 import osmium
 
-DEFAULT_BBOX = (34.69, 31.94, 34.93, 32.20)
+DEFAULT_BBOX = (34.15, 29.35, 35.95, 33.40)
 
 
 def _number(value: str | None) -> float | None:
@@ -133,6 +134,9 @@ def build_bundle(
     bbox: tuple[float, float, float, float],
     source_version: str,
 ) -> dict[str, object]:
+    west, south, east, north = bbox
+    if west >= east or south >= north:
+        raise ValueError("bbox must be ordered west south east north")
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = output.with_suffix(output.suffix + ".tmp")
     if temporary.exists():
@@ -189,12 +193,17 @@ def build_bundle(
     finally:
         connection.close()
     temporary.replace(output)
+    digest = hashlib.sha256()
+    with output.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
     return {
         "output": str(output),
         "size_bytes": output.stat().st_size,
         "buildings": handler.building_count,
         "signals": handler.signal_count,
         "source_version": source_version,
+        "sha256": digest.hexdigest(),
     }
 
 

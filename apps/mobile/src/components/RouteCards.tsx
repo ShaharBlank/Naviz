@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { useEffect, useState } from "react";
 import {
   Linking,
   Pressable,
@@ -12,7 +13,7 @@ import type { RouteAlternative } from "../api/types";
 import {
   formatDistance,
   formatDuration,
-  formatTelAvivTime,
+  formatIsraelTime,
   routeLabelKey,
 } from "../features/navigation/presenters";
 import { colors, radius, shadow, spacing } from "../theme/tokens";
@@ -35,11 +36,27 @@ export function RouteCards({
   rtl,
 }: Props) {
   const { t } = useTranslation();
+  const [startEnabled, setStartEnabled] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setStartEnabled(true), 650);
+    return () => clearTimeout(timer);
+  }, []);
+  const fastestDuration = Math.min(
+    ...routes.map((route) => route.metrics.duration_s),
+  );
+  const fastestRoute = routes.reduce<RouteAlternative | null>(
+    (current, route) =>
+      !current || route.metrics.duration_s < current.metrics.duration_s
+        ? route
+        : current,
+    null,
+  );
   return (
     <View style={styles.container}>
       <View style={[styles.header, rtl && styles.rowReverse]}>
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel={t("accessibility.backToSearch")}
           onPress={onBack}
           style={styles.backButton}
         >
@@ -49,9 +66,6 @@ export function RouteCards({
           {t("routeComparison")}
         </Text>
       </View>
-      <Text style={[styles.comparisonHint, rtl && styles.rtl]}>
-        {t("routeComparisonHint")}
-      </Text>
       <ScrollView
         style={styles.routeList}
         showsVerticalScrollIndicator={routes.length > 3}
@@ -65,16 +79,26 @@ export function RouteCards({
           const distance = t("metrics.kilometers", {
             value: formatDistance(route.metrics.distance_m),
           });
-          const arrival = formatTelAvivTime(
+          const arrival = formatIsraelTime(
             route.arrival_at,
             rtl ? "he" : "en",
           );
-          const fallback = route.fallback_reason
+          const fallback =
+            route.fallback_reason &&
+            route.fallback_reason !== "no_material_signal_reduction"
             ? t(`fallback.${route.fallback_reason}`, { defaultValue: "" })
             : "";
           const transitLeg = route.legs.find(
             (leg) => leg.mode === "transit" && leg.transit,
           );
+          const comparison = comparisonText(
+            route,
+            fastestDuration,
+            fastestRoute?.metrics.distance_m ?? route.metrics.distance_m,
+            t,
+          );
+          const details = metricLabels(route, Boolean(transitLeg), t).join(", ");
+          const confidenceColors = confidencePalette(route.quality.confidence);
           return (
             <Pressable
               key={route.id}
@@ -84,7 +108,9 @@ export function RouteCards({
                 name: t(routeLabelKey(route.label_key)),
                 duration,
                 distance,
+                details,
               })}
+              accessibilityHint={t("accessibility.routeCardHint")}
               onPress={() => onSelect(route)}
               style={[styles.card, selected && styles.cardSelected]}
             >
@@ -93,8 +119,18 @@ export function RouteCards({
                   {t(routeLabelKey(route.label_key))}
                 </Text>
                 {selected ? <Text style={styles.selectedMark}>✓</Text> : null}
-                <View style={styles.confidence}>
-                  <Text style={styles.confidenceText}>
+                <View
+                  style={[
+                    styles.confidence,
+                    { backgroundColor: confidenceColors.background },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.confidenceText,
+                      { color: confidenceColors.foreground },
+                    ]}
+                  >
                     {t(`confidence.${route.quality.confidence}`)}
                   </Text>
                 </View>
@@ -108,6 +144,11 @@ export function RouteCards({
                   {t("metrics.arrival", { value: arrival })}
                 </Text>
               </View>
+              {comparison ? (
+                <Text style={[styles.comparisonDelta, rtl && styles.rtl]}>
+                  {comparison}
+                </Text>
+              ) : null}
               {transitLeg?.transit ? (
                 <View style={[styles.transitSummary, rtl && styles.rowReverse]}>
                   <View style={styles.transitBadge}>
@@ -127,7 +168,7 @@ export function RouteCards({
                       numberOfLines={1}
                     >
                       {t("metrics.transitDeparture", {
-                        value: formatTelAvivTime(
+                        value: formatIsraelTime(
                           transitLeg.transit.departure_at,
                           rtl ? "he" : "en",
                         ),
@@ -150,9 +191,7 @@ export function RouteCards({
                 {route.metrics.shade_fraction != null ? (
                   <Metric
                     color={colors.shade}
-                    text={t("metrics.shade", {
-                      value: Math.round(route.metrics.shade_fraction * 100),
-                    })}
+                    text={shadeMetricText(route, t)}
                   />
                 ) : null}
                 {route.metrics.traffic_signals != null ? (
@@ -214,14 +253,88 @@ export function RouteCards({
         })}
       </ScrollView>
       <Pressable
-        style={styles.startButton}
-        onPress={onStart}
+        style={[styles.startButton, !startEnabled && styles.startButtonDisabled]}
+        onPress={startEnabled ? onStart : undefined}
+        disabled={!startEnabled}
         accessibilityRole="button"
+        accessibilityLabel={t("start")}
+        accessibilityState={{ disabled: !startEnabled }}
       >
         <Text style={styles.startText}>{t("start")}</Text>
       </Pressable>
     </View>
   );
+}
+
+type Translate = ReturnType<typeof useTranslation>["t"];
+
+function metricLabels(
+  route: RouteAlternative,
+  hasTransit: boolean,
+  t: Translate,
+): string[] {
+  const labels: string[] = [];
+  if (route.metrics.traffic_signals != null) {
+    labels.push(t("metrics.signals", { value: route.metrics.traffic_signals }));
+  }
+  if (route.metrics.signals_avoided) {
+    labels.push(
+      t("metrics.signalsAvoided", { value: route.metrics.signals_avoided }),
+    );
+  }
+  if (route.metrics.shade_fraction != null) {
+    labels.push(shadeMetricText(route, t));
+  }
+  if (hasTransit) {
+    labels.push(t("metrics.transfers", { value: route.metrics.transfers }));
+  }
+  return labels.length > 0 ? labels : [t("metrics.noExtraDetails")];
+}
+
+function shadeMetricText(route: RouteAlternative, t: Translate): string {
+  if (route.metrics.sun_exposure_minutes === 0) {
+    return t("metrics.noSunExposure");
+  }
+  return t("metrics.shade", {
+    value: Math.round((route.metrics.shade_fraction ?? 0) * 100),
+  });
+}
+
+function comparisonText(
+  route: RouteAlternative,
+  fastestDuration: number,
+  shortestDistance: number,
+  t: Translate,
+): string {
+  const parts: string[] = [];
+  const extraSeconds = route.metrics.duration_s - fastestDuration;
+  const extraMeters = route.metrics.distance_m - shortestDistance;
+  if (extraSeconds >= 30) {
+    parts.push(
+      t("metrics.moreTime", { value: Math.max(1, Math.round(extraSeconds / 60)) }),
+    );
+  }
+  if (extraMeters >= 50) {
+    parts.push(
+      t("metrics.moreDistance", { value: formatDistance(extraMeters) }),
+    );
+  }
+  return parts.length > 0
+    ? t("metrics.comparedWithFastest", { value: parts.join(" · ") })
+    : "";
+}
+
+function confidencePalette(confidence: string): {
+  background: string;
+  foreground: string;
+} {
+  if (confidence === "high") {
+    return { background: "#DCFCE7", foreground: colors.success };
+  }
+  if (confidence === "medium") {
+    return { background: "#FEF3C7", foreground: "#92400E" };
+  }
+  return { background: "#F1F5F9", foreground: colors.muted };
 }
 
 function Metric({ color, text }: { color: string; text: string }) {
@@ -260,12 +373,6 @@ const styles = StyleSheet.create({
   },
   backIcon: { color: colors.primaryDark, fontSize: 25, fontWeight: "800" },
   headerTitle: { flex: 1, color: colors.ink, fontSize: 17, fontWeight: "900" },
-  comparisonHint: {
-    color: colors.muted,
-    fontSize: 12,
-    lineHeight: 17,
-    marginBottom: spacing.sm,
-  },
   routeList: { flexShrink: 1 },
   routeListContent: { gap: spacing.sm, paddingBottom: spacing.xs },
   card: {
@@ -294,6 +401,12 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
   },
   confidenceText: { color: colors.success, fontSize: 10, fontWeight: "800" },
+  comparisonDelta: {
+    color: colors.primaryDark,
+    fontSize: 12,
+    fontWeight: "800",
+    marginTop: spacing.xs,
+  },
   primaryMetrics: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -355,5 +468,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  startButtonDisabled: { opacity: 0.55 },
   startText: { color: colors.surface, fontSize: 18, fontWeight: "900" },
 });
