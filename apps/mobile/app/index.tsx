@@ -158,27 +158,13 @@ export default function HomeScreen() {
   );
 
   useEffect(() => {
-    let cancelled = false;
-    void Location.getForegroundPermissionsAsync().then(async (permission) => {
-      if (permission.status !== "granted") return;
-      const lastKnown = await Location.getLastKnownPositionAsync({
-        maxAge: 60_000,
-        requiredAccuracy: 200,
-      });
-      if (!cancelled && lastKnown) {
-        updateLocation(
-          lastKnown,
-          setOrigin,
-          setUserCoordinate,
-          setUserHeadingDegrees,
-          setLocationStatus,
-        );
-      }
+    // Do not prompt at launch, but when permission was already granted obtain a
+    // current fix as well as the last-known fast path. A fresh installation has
+    // no cached fix, so relying on lastKnown alone leaves the map at country zoom.
+    void Location.getForegroundPermissionsAsync().then((permission) => {
+      if (permission.status === "granted") void locateUser(false);
     });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  }, [locateUser]);
 
   useEffect(() => {
     if (
