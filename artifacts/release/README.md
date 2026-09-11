@@ -1,5 +1,33 @@
 # Naviz Android releases
 
+## 0.5.1 Israel preview (version code 8)
+
+- File: `Naviz-0.5.1-israel.apk`
+- Size: 151,504,156 bytes
+- SHA-256: `A29DD9A14E421B69BD845F2567C02B610884B7FA53EB2BCA3EABDCDE65C126F0`
+- Package: `app.naviz.mobile`
+- Android SDK: minimum 24, target 36
+- Expo SDK: 57
+- Backend embedded at bundle time: <https://naviz-api.onrender.com>
+
+This universal APK contains ARM64, ARMv7, x86, and x86_64 native libraries. Its
+Hermes bundle contains the production API URL exactly once and contains no
+localhost API URL. APK Signature Scheme v2 verification passes. It is signed
+with the local Android debug certificate for direct installation and field
+testing, not Play Store distribution; signer certificate SHA-256:
+`FAC61745DC0903786FB9EDE62A962B399F7348F0BB6F899B8332667591033B9C`.
+
+An equivalent x86_64-only build was clean-installed on an Android 16 Pixel
+emulator and exercised against the deployed backend. Validation covered
+automatic foreground-location acquisition, live Tel Aviv GPS injection,
+nationwide Haifa search, a successful 94.2 km Tel Aviv-to-Haifa driving route,
+route comparison with traffic-light counts, and active navigation. The 3D
+navigation run included extruded buildings, route rendering, a heading-aware
+vehicle marker, synthetic GPS progress, and repeated live 2D/3D switching. The
+native and React Native crash logs remained clean. The intercity test also found
+a server-side signal-enrichment performance defect; the corresponding source
+release fixes it and includes a real-bundle regression benchmark.
+
 ## 0.5.0 Israel preview (version code 7)
 
 - File: `Naviz-0.5.0-israel.apk`
