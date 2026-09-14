@@ -27,15 +27,22 @@ export function formatDepartureTime(
   locale: "he" | "en",
   now: Date = new Date(),
 ): string {
-  const sameDay =
-    selected.getFullYear() === now.getFullYear() &&
-    selected.getMonth() === now.getMonth() &&
-    selected.getDate() === now.getDate();
+  const sameDay = israelDateKey(selected) === israelDateKey(now);
   return new Intl.DateTimeFormat(locale === "he" ? "he-IL" : "en-IL", {
+    timeZone: "Asia/Jerusalem",
     ...(sameDay
       ? {}
       : { weekday: "short" as const, day: "numeric" as const, month: "short" as const }),
     hour: "2-digit",
     minute: "2-digit",
   }).format(selected);
+}
+
+function israelDateKey(value: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jerusalem",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(value);
 }
