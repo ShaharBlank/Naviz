@@ -15,6 +15,7 @@ const rabin: Place = {
 };
 
 const defaults = {
+  searchTarget: "destination" as const,
   query: "",
   onQueryChange: jest.fn(),
   onClear: jest.fn(),
@@ -22,7 +23,11 @@ const defaults = {
   recent: [rabin],
   favorites: [],
   selectedDestination: null,
+  selectedOrigin: null,
+  departureAt: null,
   onSelect: jest.fn(),
+  onSearchTargetChange: jest.fn(),
+  onDepartureChange: jest.fn(),
   onToggleFavorite: jest.fn(),
   mode: "walk" as const,
   onModeChange: jest.fn(),
@@ -37,12 +42,22 @@ const defaults = {
 };
 
 describe("SearchPanel localization and controls", () => {
-  it("shows English LTR recents and a current-location control", async () => {
+  it("shows English LTR recents and opens starting-point search", async () => {
     await i18n.changeLanguage("en");
     const screen = render(<SearchPanel {...defaults} locale="en" />);
     expect(screen.getByText("Recent destinations")).toBeTruthy();
     expect(screen.getByText("Rabin Square")).toBeTruthy();
-    fireEvent.press(screen.getByLabelText("Current location"));
+    fireEvent.press(screen.getByLabelText("Change starting point"));
+    expect(defaults.onSearchTargetChange).toHaveBeenCalledWith("origin");
+  });
+
+  it("lets the traveler restore current location as the starting point", async () => {
+    await i18n.changeLanguage("en");
+    const screen = render(
+      <SearchPanel {...defaults} locale="en" searchTarget="origin" />,
+    );
+    expect(screen.getByLabelText("Where from?")).toBeTruthy();
+    fireEvent.press(screen.getByLabelText("Start from my location"));
     expect(defaults.onUseCurrentLocation).toHaveBeenCalled();
   });
 

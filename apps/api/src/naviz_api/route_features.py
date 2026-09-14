@@ -6,7 +6,7 @@ import math
 import sqlite3
 import struct
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from itertools import pairwise
 from pathlib import Path
 from time import monotonic
@@ -130,7 +130,8 @@ class SqliteOsmRouteContext:
         cached = self._scene_cache.get(key)
         if cached is not None and cached.expires_at > monotonic():
             return cached.response
-        response = await asyncio.to_thread(self._build_shadow_scene, request)
+        bucketed_request = request.model_copy(update={"at": minute})
+        response = await asyncio.to_thread(self._build_shadow_scene, bucketed_request)
         async with self._scene_lock:
             if len(self._scene_cache) >= 24:
                 oldest = min(
@@ -162,10 +163,11 @@ class SqliteOsmRouteContext:
             return ShadowSceneResponse(
                 available=False,
                 at=request.at,
+                encoded_polyline=request.encoded_polyline,
                 solar_azimuth_degrees=round(sun_azimuth, 3),
                 solar_elevation_degrees=round(sun_elevation, 3),
                 coverage_bbox=self._coverage_bbox,
-                model_version="osm-2.5d-v1",
+                model_version="osm-2.5d-v2",
                 attribution=["© OpenStreetMap contributors · ODbL"],
                 warning=(
                     "Shadow scenes are limited to a six-kilometre viewing window; "
@@ -176,10 +178,11 @@ class SqliteOsmRouteContext:
             return ShadowSceneResponse(
                 available=False,
                 at=request.at,
+                encoded_polyline=request.encoded_polyline,
                 solar_azimuth_degrees=round(sun_azimuth, 3),
                 solar_elevation_degrees=round(sun_elevation, 3),
                 coverage_bbox=self._coverage_bbox,
-                model_version="osm-2.5d-v1",
+                model_version="osm-2.5d-v2",
                 attribution=["© OpenStreetMap contributors · ODbL"],
                 warning="Route corridor is outside validated building coverage.",
             )
@@ -201,12 +204,19 @@ class SqliteOsmRouteContext:
         return ShadowSceneResponse(
             available=True,
             at=request.at,
+            encoded_polyline=request.encoded_polyline,
             solar_azimuth_degrees=round(sun_azimuth, 3),
             solar_elevation_degrees=round(sun_elevation, 3),
             shadows=_shadow_polygons(clipped),
             high_confidence_shadows=_shadow_polygons(clipped_high),
+            segment_annotations=_snapshot_shade_annotations(
+                points,
+                shadows,
+                high_shadows,
+                sun_elevation > 0,
+            ),
             coverage_bbox=self._coverage_bbox,
-            model_version="osm-2.5d-v1",
+            model_version="osm-2.5d-v2",
             attribution=["© OpenStreetMap contributors · ODbL"],
         )
 
@@ -439,14 +449,13 @@ class RouteFeatureAnalyzer:
                 )
                 for route in routes
             ]
-        departure = routes[0].departure_at
-        center = decode_polyline(routes[0].encoded_polyline)[0]
-        shadows, high_shadows, sun_up, _, _ = _shadow_unions(
-            context.buildings,
-            departure,
-            center,
-        )
-        enriched = [_annotate_shade(route, shadows, high_shadows, sun_up) for route in routes]
+        shadow_cache: dict[
+            tuple[datetime, float, float], tuple[BaseGeometry, BaseGeometry, bool]
+        ] = {}
+        enriched = [
+            _annotate_shade_time_dependent(route, context.buildings, shadow_cache)
+            for route in routes
+        ]
         fastest = min(enriched, key=lambda route: route.metrics.duration_s)
         if request.include_comparisons:
             balanced = self._best_balanced_shade_route(request, enriched, fastest, 15.0).model_copy(
@@ -708,43 +717,81 @@ def _shadow_for_geometry(geometry: Polygon | MultiPolygon, dx: float, dy: float)
     return unary_union(shadows)
 
 
-def _annotate_shade(
-    route: RouteAlternative,
+def _snapshot_shade_annotations(
+    geometry: list[Coordinate],
     shadows: BaseGeometry,
     high_shadows: BaseGeometry,
     sun_up: bool,
-) -> RouteAlternative:
-    geometry = decode_polyline(route.encoded_polyline)
-    annotations = []
-    shaded_distance = high_distance = total_distance = 0.0
+) -> list[SegmentAnnotation]:
+    annotations: list[SegmentAnnotation] = []
     for index, (first, second) in enumerate(pairwise(geometry)):
         distance = haversine_m(first, second)
-        total_distance += distance
         samples = _segment_samples(first, second, distance)
-        if sun_up:
-            shaded = sum(shadows.covers(point) for point in samples) / len(samples)
-            high = sum(high_shadows.covers(point) for point in samples) / len(samples)
-        else:
-            shaded = high = 1.0
-        shaded_distance += distance * shaded
-        high_distance += distance * high
-        classification = "shade" if shaded >= 0.75 else "mixed" if shaded >= 0.25 else "sun"
+        shaded, _ = _sampled_shade_fractions(samples, shadows, high_shadows, sun_up)
         annotations.append(
             SegmentAnnotation(
                 start_index=index,
                 end_index=index + 1,
-                classification=classification,
+                classification=_shade_classification(shaded),
                 shade_fraction=round(shaded, 4),
                 confidence=DataConfidence.MEDIUM,
             )
         )
+    return annotations
+
+
+def _annotate_shade_time_dependent(
+    route: RouteAlternative,
+    buildings: tuple[Building, ...],
+    cache: dict[tuple[datetime, float, float], tuple[BaseGeometry, BaseGeometry, bool]],
+) -> RouteAlternative:
+    geometry = decode_polyline(route.encoded_polyline)
+    segment_distances = [haversine_m(first, second) for first, second in pairwise(geometry)]
+    route_distance = sum(segment_distances)
+    if not geometry or route_distance <= 0:
+        return route
+    observer_coordinate = geometry[len(geometry) // 2]
+    annotations: list[SegmentAnnotation] = []
+    shaded_distance = high_distance = total_distance = 0.0
+    sun_exposure_seconds = 0.0
+    elapsed_distance = 0.0
+    for index, ((first, second), distance) in enumerate(
+        zip(pairwise(geometry), segment_distances, strict=True)
+    ):
+        midpoint_fraction = (elapsed_distance + distance / 2) / route_distance
+        predicted_at = route.departure_at + timedelta(
+            seconds=route.metrics.duration_s * midpoint_fraction
+        )
+        lower_at, upper_at, interpolation = _five_minute_bounds(predicted_at)
+        lower = _cached_shadow_union(cache, buildings, lower_at, observer_coordinate)
+        upper = _cached_shadow_union(cache, buildings, upper_at, observer_coordinate)
+        samples = _segment_samples(first, second, distance)
+        lower_shade, lower_high = _sampled_shade_fractions(samples, *lower)
+        upper_shade, upper_high = _sampled_shade_fractions(samples, *upper)
+        shaded = lower_shade + (upper_shade - lower_shade) * interpolation
+        high = lower_high + (upper_high - lower_high) * interpolation
+        segment_duration = route.metrics.duration_s * distance / route_distance
+        sun_exposure_seconds += segment_duration * (1 - shaded)
+        shaded_distance += distance * shaded
+        high_distance += distance * high
+        total_distance += distance
+        annotations.append(
+            SegmentAnnotation(
+                start_index=index,
+                end_index=index + 1,
+                classification=_shade_classification(shaded),
+                shade_fraction=round(shaded, 4),
+                confidence=DataConfidence.MEDIUM,
+            )
+        )
+        elapsed_distance += distance
     fraction = shaded_distance / total_distance if total_distance else 0.0
     high_fraction = high_distance / total_distance if total_distance else 0.0
     metrics = route.metrics.model_copy(
         update={
             "shade_fraction": round(fraction, 4),
             "high_confidence_shade_fraction": round(high_fraction, 4),
-            "sun_exposure_minutes": round(route.metrics.duration_s * (1 - fraction) / 60, 2),
+            "sun_exposure_minutes": round(sun_exposure_seconds / 60, 2),
         }
     )
     quality = route.quality.model_copy(
@@ -760,6 +807,47 @@ def _annotate_shade(
     return route.model_copy(
         update={"annotations": annotations, "legs": legs, "metrics": metrics, "quality": quality}
     )
+
+
+def _five_minute_bounds(when: datetime) -> tuple[datetime, datetime, float]:
+    lower = when.replace(minute=when.minute - when.minute % 5, second=0, microsecond=0)
+    upper = lower + timedelta(minutes=5)
+    interpolation = (when - lower).total_seconds() / 300
+    return lower, upper, interpolation
+
+
+def _cached_shadow_union(
+    cache: dict[tuple[datetime, float, float], tuple[BaseGeometry, BaseGeometry, bool]],
+    buildings: tuple[Building, ...],
+    when: datetime,
+    coordinate: Coordinate,
+) -> tuple[BaseGeometry, BaseGeometry, bool]:
+    key = (when, round(coordinate.latitude, 3), round(coordinate.longitude, 3))
+    cached = cache.get(key)
+    if cached is not None:
+        return cached
+    shadows, high_shadows, sun_up, _, _ = _shadow_unions(buildings, when, coordinate)
+    result = (shadows, high_shadows, sun_up)
+    cache[key] = result
+    return result
+
+
+def _sampled_shade_fractions(
+    samples: list[Point],
+    shadows: BaseGeometry,
+    high_shadows: BaseGeometry,
+    sun_up: bool,
+) -> tuple[float, float]:
+    if not sun_up:
+        return 1.0, 1.0
+    return (
+        sum(shadows.covers(point) for point in samples) / len(samples),
+        sum(high_shadows.covers(point) for point in samples) / len(samples),
+    )
+
+
+def _shade_classification(shaded: float) -> str:
+    return "shade" if shaded >= 0.75 else "mixed" if shaded >= 0.25 else "sun"
 
 
 def _annotate_signals(route: RouteAlternative, signals: tuple[Point, ...]) -> RouteAlternative:

@@ -133,6 +133,7 @@ class Services:
             return ShadowSceneResponse(
                 available=False,
                 at=request.at,
+                encoded_polyline=request.encoded_polyline,
                 solar_azimuth_degrees=0,
                 solar_elevation_degrees=0,
                 coverage_bbox=self.feature_coverage_bbox,

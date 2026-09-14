@@ -15,6 +15,7 @@ import type {
   Coordinate,
   MobilityVehicle,
   RouteAlternative,
+  SegmentAnnotation,
   ShadowSceneResponse,
   TravelMode,
 } from "../api/types";
@@ -60,6 +61,7 @@ function NavizMapComponent({
   onMobilityVehiclePress,
 }: NavizMapProps) {
   const { t } = useTranslation();
+  const is3d = displayMode === "3d";
   const selectedRoute =
     routes.find((route) => route.id === selectedRouteId) ?? routes[0] ?? null;
   const effectiveSelectedRouteId = selectedRoute?.id ?? null;
@@ -79,28 +81,19 @@ function NavizMapComponent({
     () => buildRouteMarkerFeatureCollection(selectedRoute),
     [selectedRoute],
   );
-  const segments = useMemo<GeoJSON.FeatureCollection<GeoJSON.LineString>>(
-    () => ({
-      type: "FeatureCollection" as const,
-      features:
-        selectedRoute?.annotations
-          .map((annotation) => ({
-            type: "Feature" as const,
-            properties: {
-              classification: annotation.classification,
-              selectedSide: annotation.selected_side,
-            },
-            geometry: {
-              type: "LineString" as const,
-              coordinates: geometry
-                .slice(annotation.start_index, annotation.end_index + 1)
-                .map(({ longitude, latitude }) => [longitude, latitude]),
-            },
-          }))
-          .filter((feature) => feature.geometry.coordinates.length >= 2) ?? [],
-    }),
+  const segments = useMemo(
+    () => buildShadeSegmentFeatureCollection(geometry, selectedRoute?.annotations ?? []),
     [geometry, selectedRoute?.annotations],
   );
+  const liveSegments = useMemo(() => {
+    if (!is3d || !shadowScene?.available || !shadowScene.encoded_polyline) {
+      return buildShadeSegmentFeatureCollection([], []);
+    }
+    return buildShadeSegmentFeatureCollection(
+      decodePolyline(shadowScene.encoded_polyline),
+      shadowScene.segment_annotations ?? [],
+    );
+  }, [is3d, shadowScene]);
   const crossings = useMemo<GeoJSON.FeatureCollection<GeoJSON.Point>>(
     () => ({
       type: "FeatureCollection" as const,
@@ -210,7 +203,6 @@ function NavizMapComponent({
     () => buildShadowFeatureCollection(shadowScene, true),
     [shadowScene],
   );
-  const is3d = displayMode === "3d";
   return (
     <View style={styles.container} accessibilityLabel={t("accessibility.map")}>
       <Map
@@ -453,6 +445,54 @@ function NavizMapComponent({
                 layout={{ "line-cap": "round" }}
               />
             </GeoJSONSource>
+            {liveSegments.features.length > 0 ? (
+              <GeoJSONSource
+                key="live-route-segments"
+                id="live-route-segments"
+                data={liveSegments}
+              >
+                <Layer
+                  key="live-route-shade-lines"
+                  id="live-route-shade-lines"
+                  type="line"
+                  filter={[
+                    "==",
+                    ["get", "classification"],
+                    "shade",
+                  ]}
+                  paint={{ "line-color": colors.shade, "line-width": 8 }}
+                  layout={{ "line-cap": "round" }}
+                />
+                <Layer
+                  key="live-route-mixed-lines"
+                  id="live-route-mixed-lines"
+                  type="line"
+                  filter={[
+                    "==",
+                    ["get", "classification"],
+                    "mixed",
+                  ]}
+                  paint={{
+                    "line-color": colors.mixed,
+                    "line-width": 8,
+                    "line-dasharray": [2, 1],
+                  }}
+                  layout={{ "line-cap": "round" }}
+                />
+                <Layer
+                  key="live-route-sun-lines"
+                  id="live-route-sun-lines"
+                  type="line"
+                  filter={["==", ["get", "classification"], "sun"]}
+                  paint={{
+                    "line-color": colors.sun,
+                    "line-width": 8,
+                    "line-dasharray": [0.5, 1.5],
+                  }}
+                  layout={{ "line-cap": "round" }}
+                />
+              </GeoJSONSource>
+            ) : null}
             <GeoJSONSource
               key="route-crossings"
               id="route-crossings"
@@ -678,6 +718,31 @@ export function buildRouteFeatureCollection(
         },
       ];
     }),
+  };
+}
+
+export function buildShadeSegmentFeatureCollection(
+  geometry: Coordinate[],
+  annotations: SegmentAnnotation[],
+): GeoJSON.FeatureCollection<GeoJSON.LineString> {
+  return {
+    type: "FeatureCollection",
+    features: annotations
+      .map((annotation) => ({
+        type: "Feature" as const,
+        properties: {
+          classification: annotation.classification,
+          selectedSide: annotation.selected_side,
+          shadeFraction: annotation.shade_fraction,
+        },
+        geometry: {
+          type: "LineString" as const,
+          coordinates: geometry
+            .slice(annotation.start_index, annotation.end_index + 1)
+            .map(({ longitude, latitude }) => [longitude, latitude]),
+        },
+      }))
+      .filter((feature) => feature.geometry.coordinates.length >= 2),
   };
 }
 

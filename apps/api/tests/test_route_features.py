@@ -8,6 +8,7 @@ from typing import cast
 from zoneinfo import ZoneInfo
 
 import pytest
+from naviz_api import route_features
 from naviz_api.geometry import encode_polyline
 from naviz_api.models import (
     Coordinate,
@@ -29,7 +30,7 @@ from naviz_api.route_features import (
     SqliteOsmRouteContext,
 )
 from pyproj import Transformer
-from shapely.geometry import Point
+from shapely.geometry import Point, Polygon
 
 TZ = ZoneInfo("Asia/Jerusalem")
 TO_ITM = Transformer.from_crs("EPSG:4326", "EPSG:2039", always_xy=True)
@@ -112,6 +113,8 @@ async def test_sqlite_context_reads_only_route_corridor_features(tmp_path) -> No
     assert scene.solar_elevation_degrees > 0
     assert scene.shadows
     assert scene.high_confidence_shadows
+    assert scene.encoded_polyline == scene_request.encoded_polyline
+    assert len(scene.segment_annotations) == 1
     assert scene.attribution == ["© OpenStreetMap contributors · ODbL"]
     assert await source.shadow_scene(scene_request) is scene
 
@@ -393,6 +396,35 @@ def test_maximum_shade_optimizes_shaded_fraction_not_only_sun_minutes() -> None:
 
     assert balanced.id == fastest.id
     assert maximum.id == shadiest.id
+
+
+def test_walking_shade_uses_predicted_segment_arrival_times(monkeypatch) -> None:
+    departure = datetime(2026, 8, 17, 9, 0, tzinfo=TZ)
+    geometry = [
+        Coordinate(latitude=32.070, longitude=34.780),
+        Coordinate(latitude=32.075, longitude=34.780),
+        Coordinate(latitude=32.080, longitude=34.780),
+    ]
+    route = _route("timed", 34.780, 600, 1_100, departure).model_copy(
+        update={"encoded_polyline": encode_polyline(geometry)}
+    )
+    projected = Point(*TO_ITM.transform(34.780, 32.075)).buffer(2_000)
+    sampled_minutes: list[int] = []
+
+    def fake_shadow_unions(buildings, when, coordinate):
+        del buildings, coordinate
+        sampled_minutes.append(when.minute)
+        shadow = projected if when.minute >= 5 else Polygon()
+        return shadow, shadow, True, 180.0, 45.0
+
+    monkeypatch.setattr(route_features, "_shadow_unions", fake_shadow_unions)
+
+    annotated = route_features._annotate_shade_time_dependent(route, (), {})
+
+    assert [item.classification for item in annotated.annotations] == ["mixed", "shade"]
+    assert set(sampled_minutes) == {0, 5, 10}
+    assert annotated.metrics.shade_fraction == pytest.approx(0.75, abs=0.01)
+    assert annotated.metrics.sun_exposure_minutes == pytest.approx(2.5, abs=0.05)
 
 
 def _route(

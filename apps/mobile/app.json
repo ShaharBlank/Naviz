@@ -2,7 +2,7 @@
   "expo": {
     "name": "Naviz",
     "slug": "naviz",
-    "version": "0.5.2",
+    "version": "0.5.3",
     "orientation": "portrait",
     "scheme": "naviz",
     "userInterfaceStyle": "light",
@@ -24,12 +24,13 @@
       "expo-splash-screen",
       "expo-localization",
       "expo-sqlite",
-      "expo-status-bar"
+      "expo-status-bar",
+      "@react-native-community/datetimepicker"
     ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.naviz.mobile",
-      "buildNumber": "9",
+      "buildNumber": "10",
       "infoPlist": {
         "UIBackgroundModes": [
           "location"
@@ -39,7 +40,7 @@
     },
     "android": {
       "package": "app.naviz.mobile",
-      "versionCode": 9,
+      "versionCode": 10,
       "adaptiveIcon": {
         "backgroundColor": "#111827"
       },

@@ -6,6 +6,7 @@ import {
   buildHeadingFeatureCollection,
   buildRouteLegFeatureCollection,
   buildRouteMarkerFeatureCollection,
+  buildShadeSegmentFeatureCollection,
   buildShadowFeatureCollection,
   navigationBearing,
   navigationCameraProfile,
@@ -36,6 +37,16 @@ describe("NavizMap 3D shade helpers", () => {
       },
     ],
     high_confidence_shadows: [],
+    encoded_polyline: "_p~iF~ps|U_ulLnnqC",
+    segment_annotations: [
+      {
+        start_index: 0,
+        end_index: 1,
+        classification: "shade",
+        shade_fraction: 1,
+        confidence: "high",
+      },
+    ],
     coverage_bbox: [34.15, 29.35, 35.95, 33.4],
     model_version: "osm-2.5d-v1",
     attribution: ["© OpenStreetMap contributors · ODbL"],
@@ -52,6 +63,22 @@ describe("NavizMap 3D shade helpers", () => {
 
   it("keeps high-confidence shadow geometry in its own layer", () => {
     expect(buildShadowFeatureCollection(scene, true).features).toHaveLength(0);
+  });
+
+  it("uses the same live scene snapshot for route color and building shadows", () => {
+    const segments = buildShadeSegmentFeatureCollection(
+      [
+        { latitude: 38.5, longitude: -120.2 },
+        { latitude: 40.7, longitude: -120.95 },
+      ],
+      scene.segment_annotations ?? [],
+    );
+    expect(segments.features).toHaveLength(1);
+    expect(segments.features[0]?.properties?.classification).toBe("shade");
+    expect(segments.features[0]?.geometry.coordinates).toEqual([
+      [-120.2, 38.5],
+      [-120.95, 40.7],
+    ]);
   });
 
   it("returns bounded MapLibre light values for Israel", () => {

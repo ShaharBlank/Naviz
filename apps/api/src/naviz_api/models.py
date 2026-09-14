@@ -286,10 +286,12 @@ class ShadowPolygon(ApiModel):
 class ShadowSceneResponse(ApiModel):
     available: bool
     at: datetime
+    encoded_polyline: str
     solar_azimuth_degrees: float
     solar_elevation_degrees: float
     shadows: list[ShadowPolygon] = Field(default_factory=list)
     high_confidence_shadows: list[ShadowPolygon] = Field(default_factory=list)
+    segment_annotations: list[SegmentAnnotation] = Field(default_factory=list)
     coverage_bbox: tuple[float, float, float, float] | None = None
     model_version: str
     attribution: list[str] = Field(default_factory=list)

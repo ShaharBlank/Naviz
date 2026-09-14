@@ -1341,6 +1341,10 @@
             ],
             "title": "Coverage Bbox"
           },
+          "encoded_polyline": {
+            "title": "Encoded Polyline",
+            "type": "string"
+          },
           "high_confidence_shadows": {
             "items": {
               "$ref": "#/components/schemas/ShadowPolygon"
@@ -1351,6 +1355,13 @@
           "model_version": {
             "title": "Model Version",
             "type": "string"
+          },
+          "segment_annotations": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentAnnotation"
+            },
+            "title": "Segment Annotations",
+            "type": "array"
           },
           "shadows": {
             "items": {
@@ -1382,6 +1393,7 @@
         "required": [
           "available",
           "at",
+          "encoded_polyline",
           "solar_azimuth_degrees",
           "solar_elevation_degrees",
           "model_version"
@@ -1598,7 +1610,7 @@
   "info": {
     "summary": "Israel-wide shaded, multimodal, and low-signal navigation",
     "title": "Naviz API",
-    "version": "0.3.1"
+    "version": "0.3.2"
   },
   "openapi": "3.1.0",
   "paths": {

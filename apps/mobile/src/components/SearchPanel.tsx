@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
@@ -14,9 +14,11 @@ import {
 import { distanceMeters } from "../api/polyline";
 import type { Coordinate, Place, TravelMode } from "../api/types";
 import { colors, radius, shadow, spacing } from "../theme/tokens";
+import { DepartureTimeControl } from "./DepartureTimeControl";
 
 export type LocationStatus =
   "idle" | "locating" | "ready" | "denied" | "unavailable";
+export type SearchTarget = "origin" | "destination";
 
 interface Props {
   query: string;
@@ -25,7 +27,12 @@ interface Props {
   results: Place[];
   recent: Place[];
   favorites: Place[];
+  searchTarget: SearchTarget;
+  selectedOrigin: Place | null;
   selectedDestination: Place | null;
+  departureAt: Date | null;
+  onSearchTargetChange: (target: SearchTarget) => void;
+  onDepartureChange: (value: Date | null) => void;
   onSelect: (place: Place) => void;
   onToggleFavorite: (place: Place) => void;
   mode: TravelMode;
@@ -89,6 +96,7 @@ export function SearchPanel(props: Props) {
   const { t } = useTranslation();
   const rtl = props.locale === "he";
   const [searchFocused, setSearchFocused] = useState(false);
+  const searchInput = useRef<TextInput>(null);
   const [showMoreModes, setShowMoreModes] = useState(
     MORE_MODES.includes(props.mode),
   );
@@ -102,18 +110,28 @@ export function SearchPanel(props: Props) {
   const favoriteSelected = props.favorites.some(
     (place) => place.id === props.selectedDestination?.id,
   );
-  const selectedLabel = props.selectedDestination
+  const selectedSearchPlace =
+    props.searchTarget === "origin"
+      ? props.selectedOrigin
+      : props.selectedDestination;
+  const selectedLabel = selectedSearchPlace
     ? rtl
-      ? (props.selectedDestination.name_he ?? props.selectedDestination.name)
-      : props.selectedDestination.name
+      ? (selectedSearchPlace.name_he ?? selectedSearchPlace.name)
+      : selectedSearchPlace.name
     : "";
-  const editingDestination = Boolean(
-    props.selectedDestination && props.query.trim() !== selectedLabel.trim(),
+  const editingSelection = Boolean(
+    selectedSearchPlace && props.query.trim() !== selectedLabel.trim(),
   );
+  const editingDestination =
+    props.searchTarget === "destination" && editingSelection;
   const showSearchState =
     props.query.trim().length > 1 &&
-    (!props.selectedDestination || editingDestination) &&
+    (!selectedSearchPlace || editingSelection) &&
     !props.searching;
+
+  useEffect(() => {
+    if (props.searchTarget === "origin") searchInput.current?.focus();
+  }, [props.searchTarget]);
 
   return (
     <View style={[styles.panel, searchFocused && styles.panelWhileTyping]}>
@@ -131,15 +149,64 @@ export function SearchPanel(props: Props) {
         </Pressable>
       </View>
 
+      <View style={[styles.tripContextRow, rtl && styles.rowReverse]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("origin.change")}
+          accessibilityState={{ selected: props.searchTarget === "origin" }}
+          onPress={() => props.onSearchTargetChange("origin")}
+          style={[
+            styles.originControl,
+            rtl && styles.rowReverse,
+            props.searchTarget === "origin" && styles.contextControlSelected,
+          ]}
+        >
+          <Text style={styles.originIcon}>
+            {props.selectedOrigin ? "●" : "◎"}
+          </Text>
+          <View style={styles.contextLabelGroup}>
+            <Text style={[styles.contextEyebrow, rtl && styles.rtlText]}>
+              {t("origin.label")}
+            </Text>
+            <Text
+              style={[styles.contextLabel, rtl && styles.rtlText]}
+              numberOfLines={1}
+            >
+              {props.selectedOrigin
+                ? rtl
+                  ? (props.selectedOrigin.name_he ?? props.selectedOrigin.name)
+                  : props.selectedOrigin.name
+                : t("currentLocation")}
+            </Text>
+          </View>
+        </Pressable>
+        <DepartureTimeControl
+          value={props.departureAt}
+          locale={props.locale}
+          onChange={props.onDepartureChange}
+        />
+      </View>
+
       <View style={[styles.searchBox, rtl && styles.rowReverse]}>
-        <Text style={styles.searchIcon}>⌕</Text>
+        <Text style={styles.searchIcon}>
+          {props.searchTarget === "origin" ? "●" : "⌕"}
+        </Text>
         <TextInput
-          accessibilityLabel={t("searchPlaceholder")}
+          ref={searchInput}
+          accessibilityLabel={t(
+            props.searchTarget === "origin"
+              ? "originSearchPlaceholder"
+              : "searchPlaceholder",
+          )}
           value={props.query}
           onChangeText={props.onQueryChange}
           onFocus={() => setSearchFocused(true)}
           onBlur={() => setSearchFocused(false)}
-          placeholder={t("searchPlaceholder")}
+          placeholder={t(
+            props.searchTarget === "origin"
+              ? "originSearchPlaceholder"
+              : "searchPlaceholder",
+          )}
           placeholderTextColor={colors.muted}
           style={[styles.input, rtl && styles.rtlText]}
           returnKeyType="search"
@@ -156,19 +223,6 @@ export function SearchPanel(props: Props) {
             <Text style={styles.clearIcon}>×</Text>
           </Pressable>
         ) : null}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={t("currentLocation")}
-          onPress={props.onUseCurrentLocation}
-          disabled={props.locationStatus === "locating"}
-          style={styles.inlineButton}
-        >
-          {props.locationStatus === "locating" ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <Text style={styles.locationIcon}>◎</Text>
-          )}
-        </Pressable>
       </View>
 
       <ScrollView
@@ -176,8 +230,26 @@ export function SearchPanel(props: Props) {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {props.searchTarget === "origin" ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t("origin.useCurrent")}
+            onPress={props.onUseCurrentLocation}
+            disabled={props.locationStatus === "locating"}
+            style={[styles.currentOriginRow, rtl && styles.rowReverse]}
+          >
+            {props.locationStatus === "locating" ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Text style={styles.currentOriginIcon}>◎</Text>
+            )}
+            <Text style={[styles.currentOriginLabel, rtl && styles.rtlText]}>
+              {t("origin.useCurrent")}
+            </Text>
+          </Pressable>
+        ) : null}
         {props.query.length > 0 &&
-        (!props.selectedDestination || editingDestination) &&
+        (!selectedSearchPlace || editingSelection) &&
         props.results.length > 0 ? (
           <PlaceRows
             places={props.results.slice(0, 12)}
@@ -194,6 +266,7 @@ export function SearchPanel(props: Props) {
           </Text>
         ) : null}
         {props.query.length === 0 &&
+        props.searchTarget === "destination" &&
         !props.selectedDestination &&
         props.favorites.length > 0 ? (
           <PlaceSection
@@ -205,6 +278,7 @@ export function SearchPanel(props: Props) {
           />
         ) : null}
         {props.query.length === 0 &&
+        props.searchTarget === "destination" &&
         !props.selectedDestination &&
         props.recent.length > 0 ? (
           <PlaceSection
@@ -216,6 +290,7 @@ export function SearchPanel(props: Props) {
           />
         ) : null}
         {props.query.length === 0 &&
+        props.searchTarget === "destination" &&
         !props.selectedDestination &&
         props.recent.length === 0 &&
         props.favorites.length === 0 ? (
@@ -224,7 +299,9 @@ export function SearchPanel(props: Props) {
           </Text>
         ) : null}
 
-        {props.selectedDestination && !editingDestination ? (
+        {props.selectedDestination &&
+        props.searchTarget === "destination" &&
+        !editingDestination ? (
           <View style={styles.routeControls}>
             <Pressable
               accessibilityRole="button"
@@ -567,6 +644,37 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   languageText: { color: colors.primary, fontWeight: "800" },
+  tripContextRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  originControl: {
+    minHeight: 56,
+    flex: 1.15,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  contextControlSelected: {
+    borderColor: colors.primary,
+    backgroundColor: "#EEF2FF",
+  },
+  originIcon: { color: colors.primary, fontSize: 16, fontWeight: "900" },
+  contextLabelGroup: { flex: 1, minWidth: 0 },
+  contextEyebrow: { color: colors.muted, fontSize: 10, fontWeight: "800" },
+  contextLabel: {
+    color: colors.ink,
+    fontSize: 13,
+    fontWeight: "900",
+    marginTop: 1,
+  },
   searchBox: {
     minHeight: 54,
     flexDirection: "row",
@@ -597,8 +705,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   clearIcon: { fontSize: 24, color: colors.muted },
-  locationIcon: { fontSize: 25, color: colors.primary, fontWeight: "800" },
   scrollArea: { flexGrow: 0 },
+  currentOriginRow: {
+    minHeight: 54,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingHorizontal: spacing.sm,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  currentOriginIcon: {
+    color: colors.primary,
+    fontSize: 24,
+    fontWeight: "900",
+  },
+  currentOriginLabel: {
+    flex: 1,
+    color: colors.primaryDark,
+    fontSize: 14,
+    fontWeight: "900",
+  },
   results: {
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,

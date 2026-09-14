@@ -708,10 +708,14 @@ export interface components {
                 number,
                 number
             ] | null;
+            /** Encoded Polyline */
+            encoded_polyline: string;
             /** High Confidence Shadows */
             high_confidence_shadows?: components["schemas"]["ShadowPolygon"][];
             /** Model Version */
             model_version: string;
+            /** Segment Annotations */
+            segment_annotations?: components["schemas"]["SegmentAnnotation"][];
             /** Shadows */
             shadows?: components["schemas"]["ShadowPolygon"][];
             /** Solar Azimuth Degrees */

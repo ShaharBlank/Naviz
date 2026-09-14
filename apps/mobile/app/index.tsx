@@ -21,6 +21,7 @@ import { decodePolyline, shadowWindowPolyline } from "../src/api/polyline";
 import type {
   Coordinate,
   MobilityVehicle,
+  Place,
   RoutePlanRequest,
 } from "../src/api/types";
 import { NavigationHud } from "../src/components/NavigationHud";
@@ -29,6 +30,7 @@ import { RouteCards } from "../src/components/RouteCards";
 import {
   SearchPanel,
   type LocationStatus,
+  type SearchTarget,
 } from "../src/components/SearchPanel";
 import { StatusBanner } from "../src/components/StatusBanner";
 import {
@@ -46,6 +48,10 @@ import {
   clearCachedRoute,
   loadCachedRoute,
 } from "../src/features/navigation/routeCache";
+import {
+  departureForRequest,
+  shadowDisplayTime,
+} from "../src/features/planning/departureTime";
 
 const ISRAEL_SERVICE_BBOX = {
   west: 34.15,
@@ -60,6 +66,10 @@ export default function HomeScreen() {
   const [state, send] = useMachine(navigationMachine);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [searchTarget, setSearchTarget] =
+    useState<SearchTarget>("destination");
+  const [selectedOrigin, setSelectedOrigin] = useState<Place | null>(null);
+  const [departureAt, setDepartureAt] = useState<Date | null>(null);
   const [origin, setOrigin] = useState<Coordinate | null>(null);
   const [userCoordinate, setUserCoordinate] = useState<Coordinate | null>(null);
   const [userHeadingDegrees, setUserHeadingDegrees] = useState<number | null>(
@@ -197,15 +207,21 @@ export default function HomeScreen() {
     });
   }, [locale, send]);
 
+  const searchProximity =
+    searchTarget === "destination"
+      ? (selectedOrigin?.coordinate ?? userCoordinate ?? origin)
+      : (userCoordinate ?? origin);
   const search = useQuery({
     queryKey: [
       "places",
       debouncedQuery,
       locale,
-      origin?.latitude,
-      origin?.longitude,
+      searchTarget,
+      searchProximity?.latitude,
+      searchProximity?.longitude,
     ],
-    queryFn: () => searchPlaces(debouncedQuery, locale, origin ?? undefined),
+    queryFn: () =>
+      searchPlaces(debouncedQuery, locale, searchProximity ?? undefined),
     enabled: debouncedQuery.length > 0 && state.matches("idle"),
     retry: 1,
   });
@@ -243,7 +259,7 @@ export default function HomeScreen() {
     (currentOrigin: Coordinate): RoutePlanRequest => ({
       origin: currentOrigin,
       destination: state.context.destination!.coordinate,
-      depart_at: new Date().toISOString(),
+      depart_at: departureForRequest(departureAt).toISOString(),
       locale,
       mode,
       preference: "fastest",
@@ -264,7 +280,7 @@ export default function HomeScreen() {
         allow_low_confidence_crossings: false,
       },
     }),
-    [locale, mode, state.context.destination, vehicleKind],
+    [departureAt, locale, mode, state.context.destination, vehicleKind],
   );
 
   const routeMutation = useMutation({
@@ -315,7 +331,10 @@ export default function HomeScreen() {
     }) => {
       if (!selectedRoute || !state.context.destination)
         throw new Error("No active route");
-      const request = buildRequest(coordinate);
+      const request = {
+        ...buildRequest(coordinate),
+        depart_at: new Date().toISOString(),
+      };
       const {
         origin: _origin,
         include_comparisons: _includeComparisons,
@@ -367,24 +386,23 @@ export default function HomeScreen() {
     navigating || recalculating || offline || state.matches("arrived");
   useEffect(() => {
     if (mapDisplayMode !== "3d" || !active) return undefined;
-    const timer = setInterval(() => setShadowClock(new Date()), 60_000);
+    const timer = setInterval(() => setShadowClock(new Date()), 15_000);
     return () => clearInterval(timer);
   }, [active, mapDisplayMode]);
   const shadowAt = selectedRoute
-    ? new Date(
-        active
-          ? shadowClock.getTime()
-          : new Date(selectedRoute.departure_at).getTime(),
+    ? shadowDisplayTime(selectedRoute.departure_at, active, shadowClock)
+    : null;
+  const firstRouteCoordinate = selectedRoute
+    ? decodePolyline(selectedRoute.encoded_polyline)[0]
+    : null;
+  const shadowPolyline = selectedRoute
+    ? shadowWindowPolyline(
+        selectedRoute.encoded_polyline,
+        (active ? userCoordinate : null) ??
+          firstRouteCoordinate ??
+          ISRAEL_CENTER,
       )
     : null;
-  const shadowPolyline = useMemo(() => {
-    if (!selectedRoute) return null;
-    const firstCoordinate = decodePolyline(selectedRoute.encoded_polyline)[0];
-    return shadowWindowPolyline(
-      selectedRoute.encoded_polyline,
-      userCoordinate ?? firstCoordinate ?? ISRAEL_CENTER,
-    );
-  }, [selectedRoute, userCoordinate]);
   const shadowScene = useQuery({
     queryKey: [
       "shadow-scene",
@@ -504,10 +522,10 @@ export default function HomeScreen() {
       Alert.alert(t("error.title"), t("error.noDestination"));
       return;
     }
-    // A route must start from a current fix. The map can keep displaying the
-    // last known marker while idle, but it must never silently become the
-    // origin of a later trip after the user has moved.
-    const currentOrigin = await locateUser(true);
+    // Current location is the default, but planning from a searched place must
+    // not require or silently overwrite the user's location permission.
+    const currentOrigin =
+      selectedOrigin?.coordinate ?? (await locateUser(true));
     if (!currentOrigin) {
       Alert.alert(t("error.title"), t("error.locationUnavailable"));
       return;
@@ -545,6 +563,7 @@ export default function HomeScreen() {
     lastSpokenManeuver.current = -1;
     setRemainingDistanceM(selectedRoute.metrics.distance_m);
     setProgressFraction(0);
+    setShadowClock(new Date());
     setMapDisplayMode("3d");
     let backgroundGranted = false;
     try {
@@ -610,6 +629,41 @@ export default function HomeScreen() {
     if (coordinate) setFollowing(true);
   };
 
+  const labelForPlace = (place: Place | null) =>
+    place
+      ? rtl
+        ? (place.name_he ?? place.name)
+        : place.name
+      : "";
+
+  const changeSearchTarget = (target: SearchTarget) => {
+    setSearchTarget(target);
+    setQuery(
+      target === "origin"
+        ? ""
+        : labelForPlace(state.context.destination),
+    );
+  };
+
+  const selectSearchPlace = (place: Place) => {
+    if (searchTarget === "origin") {
+      setSelectedOrigin(place);
+      setSearchTarget("destination");
+      setQuery(labelForPlace(state.context.destination));
+      return;
+    }
+    send({ type: "DESTINATION_SELECTED", destination: place });
+    setQuery(labelForPlace(place));
+    addRecent(place);
+  };
+
+  const resetToCurrentOrigin = async () => {
+    setSelectedOrigin(null);
+    setSearchTarget("destination");
+    setQuery(labelForPlace(state.context.destination));
+    await centerOnUser();
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
       <View style={styles.container}>
@@ -641,21 +695,18 @@ export default function HomeScreen() {
             results={search.data?.results ?? []}
             recent={recent}
             favorites={favorites}
+            searchTarget={searchTarget}
+            selectedOrigin={selectedOrigin}
             selectedDestination={state.context.destination}
-            onSelect={(destination) => {
-              send({ type: "DESTINATION_SELECTED", destination });
-              setQuery(
-                rtl
-                  ? (destination.name_he ?? destination.name)
-                  : destination.name,
-              );
-              addRecent(destination);
-            }}
+            departureAt={departureAt}
+            onSearchTargetChange={changeSearchTarget}
+            onDepartureChange={setDepartureAt}
+            onSelect={selectSearchPlace}
             mode={mode}
             onModeChange={setMode}
             onPlan={() => void plan()}
             onCancel={cancelPlanning}
-            onUseCurrentLocation={() => void centerOnUser()}
+            onUseCurrentLocation={() => void resetToCurrentOrigin()}
             locationStatus={locationStatus}
             searching={search.isFetching}
             searchError={search.isError}
@@ -663,7 +714,7 @@ export default function HomeScreen() {
             locale={locale}
             onLocaleToggle={() => setLocale(locale === "he" ? "en" : "he")}
             onToggleFavorite={toggleFavorite}
-            proximity={userCoordinate ?? origin}
+            proximity={searchProximity}
             mobilityCount={
               mode === "rental_transit" && mobility.isFetching && !mobility.data
                 ? null
