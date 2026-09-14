@@ -1,5 +1,40 @@
 # Naviz Android releases
 
+## 0.5.2 Israel preview (version code 9)
+
+- File: `Naviz-0.5.2-israel.apk`
+- Size: 157,854,663 bytes
+- SHA-256: `AADED4EDD9C3F44688C4D7386705464599E881A00806253AB672F57D5A8EC2F6`
+- Package: `app.naviz.mobile`
+- Android SDK: minimum 24, target 36
+- Expo SDK: 57
+- Source commit: `a42efd894804d700ec8e846c9c3bd0d3652abed2`
+- Backend embedded at bundle time: <https://naviz-api.onrender.com>
+- Backend image pinned on Render:
+  `ghcr.io/shaharblank/naviz-api:a42efd894804d700ec8e846c9c3bd0d3652abed2`
+- EAS mirror build:
+  <https://expo.dev/accounts/shaharblank/projects/naviz/builds/36a1a248-c1e4-48ce-900e-16cc57cda92a>
+- CI: <https://github.com/ShaharBlank/Naviz/actions/runs/34860729773>
+- Container publication:
+  <https://github.com/ShaharBlank/Naviz/actions/runs/34860729722>
+
+This universal APK contains ARM64, ARMv7, x86, and x86_64 native libraries. Its
+Hermes bundle contains the production API URL exactly once and contains neither
+the localhost nor Android-emulator Naviz API fallback. APK Signature Scheme v2
+verification passes. It is signed with the local Android debug certificate for
+direct installation and field testing, not Play Store distribution; signer
+certificate SHA-256:
+`FAC61745DC0903786FB9EDE62A962B399F7348F0BB6F899B8332667591033B9C`.
+
+The exact release APK was clean-installed on an Android 16 Pixel emulator and
+run with Metro stopped against API `0.3.1` on Render. Validation covered fresh
+location acquisition, richer live place search, distinct midday walking route
+alternatives, traffic-signal route metrics, preview, active pitched navigation,
+the heading-aware no-circle walking avatar, synthetic GPS progress from 750 m to
+360 m, maneuver changes, and arrival at 0 m. Native and React Native crash logs
+remained clean. Backend release gates passed 88 pytest tests plus Ruff and mypy;
+mobile gates passed strict TypeScript, ESLint, and 37 Jest tests.
+
 ## 0.5.1 Israel preview (version code 8)
 
 - File: `Naviz-0.5.1-israel.apk`

@@ -8,16 +8,19 @@
 - Public container: `ghcr.io/shaharblank/naviz-api`
 - Source repository: <https://github.com/ShaharBlank/Naviz> (Apache-2.0)
 - Expo project: <https://expo.dev/accounts/shaharblank/projects/naviz>
-- Android build:
-  <https://expo.dev/accounts/shaharblank/projects/naviz/builds/b63f768f-ad39-4cc0-89e5-36477836675f>
+- Android release: <https://github.com/ShaharBlank/Naviz/releases/tag/v0.5.2>
+- EAS mirror build:
+  <https://expo.dev/accounts/shaharblank/projects/naviz/builds/36a1a248-c1e4-48ce-900e-16cc57cda92a>
 
 Render is pinned to an immutable Git-commit tag from
 `ghcr.io/shaharblank/naviz-api`; the active tag and data-bundle version are
 verified through the deployment event and `/v1/data/status` before release.
+The active image for API `0.3.1` is
+`ghcr.io/shaharblank/naviz-api:a42efd894804d700ec8e846c9c3bd0d3652abed2`.
 
 The Android `preview` profile embeds `https://naviz-api.onrender.com` as
-`EXPO_PUBLIC_API_URL`. The public EAS artifact is temporary; the verified local
-copy and its checksum are documented in `artifacts/release/README.md`.
+`EXPO_PUBLIC_API_URL`. EAS artifacts are temporary; the permanent GitHub release
+asset and its checksum are documented in `artifacts/release/README.md`.
 
 ## Render API
 
