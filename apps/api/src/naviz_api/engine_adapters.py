@@ -82,21 +82,36 @@ class ValhallaAdapter:
                 result = self.normalize(cast(dict[str, Any], response.json()), request)
                 if result:
                     alternative_payloads = self._alternative_payloads(request, result[0])
-                    responses = await asyncio.gather(
-                        *(
-                            client.post(f"{self._base_url}/route", json=item)
+                    if alternative_payloads:
+                        tasks = {
+                            asyncio.create_task(
+                                client.post(f"{self._base_url}/route", json=item)
+                            )
                             for item in alternative_payloads
-                        ),
-                        return_exceptions=True,
-                    )
-                    for candidate_response in responses:
-                        if not isinstance(candidate_response, httpx.Response):
-                            continue
-                        if candidate_response.status_code >= 400:
-                            continue
-                        result.extend(
-                            self.normalize(cast(dict[str, Any], candidate_response.json()), request)
+                        }
+                        completed, pending = await asyncio.wait(
+                            tasks,
+                            timeout=min(1.8, self._timeout / 2),
                         )
+                        for task in pending:
+                            task.cancel()
+                        if pending:
+                            await asyncio.gather(*pending, return_exceptions=True)
+                        for task in completed:
+                            try:
+                                candidate_response = task.result()
+                                if candidate_response.status_code >= 400:
+                                    continue
+                                result.extend(
+                                    self.normalize(
+                                        cast(dict[str, Any], candidate_response.json()),
+                                        request,
+                                    )
+                                )
+                            except httpx.HTTPError:
+                                continue
+                            except ValueError:
+                                continue
         except httpx.HTTPStatusError as exc:
             if exc.response.status_code in {400, 404}:
                 raise NoRouteError from exc
@@ -138,21 +153,42 @@ class ValhallaAdapter:
         magnitude = max((delta_lat**2 + delta_lon**2) ** 0.5, 1e-9)
         perpendicular_lat = -delta_lon / magnitude
         perpendicular_lon = delta_lat / magnitude
-        offset_m = 220 if request.mode == TravelMode.WALK else 320
-        payloads = []
-        for direction in (-1, 1):
-            via_lat = midpoint.latitude + direction * perpendicular_lat * offset_m / 111_320
-            via_lon = midpoint.longitude + direction * perpendicular_lon * offset_m / (
-                111_320 * cos(radians(midpoint.latitude))
+        route_distance_m = sum(leg.distance_m for leg in primary.legs)
+        if request.mode == TravelMode.WALK:
+            offset_scales = (
+                min(160.0, max(55.0, route_distance_m * 0.08)),
+                min(500.0, max(140.0, route_distance_m * 0.20)),
             )
-            payload = cls.request_payload(request)
-            payload["locations"] = [
-                {"lat": request.origin.latitude, "lon": request.origin.longitude},
-                {"lat": via_lat, "lon": via_lon, "type": "through"},
-                {"lat": request.destination.latitude, "lon": request.destination.longitude},
-            ]
-            payload["alternates"] = 0
-            payloads.append(payload)
+        elif request.mode in {TravelMode.BIKE, TravelMode.SCOOTER}:
+            offset_scales = (
+                min(400.0, max(120.0, route_distance_m * 0.06)),
+                min(900.0, max(250.0, route_distance_m * 0.14)),
+            )
+        else:
+            # Probe one nearby city block and one broader corridor on each
+            # side. This supplies genuinely different signal counts without
+            # relaxing the final 10% ETA / 15% distance acceptance caps.
+            offset_scales = (
+                min(650.0, max(180.0, route_distance_m * 0.04)),
+                min(1_500.0, max(350.0, route_distance_m * 0.10)),
+            )
+        payloads = []
+        for offset_m in dict.fromkeys(round(value, 1) for value in offset_scales):
+            for direction in (-1, 1):
+                via_lat = (
+                    midpoint.latitude + direction * perpendicular_lat * offset_m / 111_320
+                )
+                via_lon = midpoint.longitude + direction * perpendicular_lon * offset_m / (
+                    111_320 * cos(radians(midpoint.latitude))
+                )
+                payload = cls.request_payload(request)
+                payload["locations"] = [
+                    {"lat": request.origin.latitude, "lon": request.origin.longitude},
+                    {"lat": via_lat, "lon": via_lon, "type": "through"},
+                    {"lat": request.destination.latitude, "lon": request.destination.longitude},
+                ]
+                payload["alternates"] = 0
+                payloads.append(payload)
         return payloads
 
     @staticmethod

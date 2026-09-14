@@ -24,10 +24,7 @@ import type {
   RoutePlanRequest,
 } from "../src/api/types";
 import { NavigationHud } from "../src/components/NavigationHud";
-import {
-  NavizMap,
-  type MapDisplayMode,
-} from "../src/components/NavizMapHost";
+import { NavizMap, type MapDisplayMode } from "../src/components/NavizMapHost";
 import { RouteCards } from "../src/components/RouteCards";
 import {
   SearchPanel,
@@ -78,7 +75,6 @@ export default function HomeScreen() {
   const [progressFraction, setProgressFraction] = useState(0);
   const [offlineContinuation, setOfflineContinuation] = useState(false);
   const [mapDisplayMode, setMapDisplayMode] = useState<MapDisplayMode>("2d");
-  const [shadowTimeOffsetMinutes, setShadowTimeOffsetMinutes] = useState(0);
   const [shadowClock, setShadowClock] = useState(() => new Date());
   const tracker = useRef<ProgressTracker | null>(null);
   const rerouting = useRef(false);
@@ -290,7 +286,6 @@ export default function HomeScreen() {
       setProgressFraction(0);
       setFollowing(false);
       setOfflineContinuation(false);
-      setShadowTimeOffsetMinutes(0);
     },
     onError: (error) => {
       send({
@@ -377,10 +372,9 @@ export default function HomeScreen() {
   }, [active, mapDisplayMode]);
   const shadowAt = selectedRoute
     ? new Date(
-        (active
+        active
           ? shadowClock.getTime()
-          : new Date(selectedRoute.departure_at).getTime()) +
-          shadowTimeOffsetMinutes * 60_000,
+          : new Date(selectedRoute.departure_at).getTime(),
       )
     : null;
   const shadowPolyline = useMemo(() => {
@@ -551,7 +545,6 @@ export default function HomeScreen() {
     lastSpokenManeuver.current = -1;
     setRemainingDistanceM(selectedRoute.metrics.distance_m);
     setProgressFraction(0);
-    setShadowTimeOffsetMinutes(0);
     setMapDisplayMode("3d");
     let backgroundGranted = false;
     try {
@@ -627,7 +620,6 @@ export default function HomeScreen() {
           userHeadingDegrees={userHeadingDegrees}
           displayMode={mapDisplayMode}
           shadowScene={shadowScene.data ?? null}
-          shadowLoading={shadowScene.isFetching}
           mobilityVehicles={
             mode === "rental_transit" ? (mobility.data?.vehicles ?? []) : []
           }
@@ -637,12 +629,6 @@ export default function HomeScreen() {
           onRecenter={() => void centerOnUser()}
           onOverview={() => setFollowing(false)}
           onDisplayModeChange={setMapDisplayMode}
-          onShadowTimeShift={(minutes) =>
-            setShadowTimeOffsetMinutes((value) =>
-              Math.max(-360, Math.min(360, value + minutes)),
-            )
-          }
-          onShadowTimeReset={() => setShadowTimeOffsetMinutes(0)}
           onMobilityVehiclePress={(vehicle) =>
             void openMobilityVehicle(vehicle)
           }
@@ -677,6 +663,7 @@ export default function HomeScreen() {
             locale={locale}
             onLocaleToggle={() => setLocale(locale === "he" ? "en" : "he")}
             onToggleFavorite={toggleFavorite}
+            proximity={userCoordinate ?? origin}
             mobilityCount={
               mode === "rental_transit" && mobility.isFetching && !mobility.data
                 ? null
@@ -691,7 +678,6 @@ export default function HomeScreen() {
             selectedRouteId={state.context.selectedRouteId}
             onSelect={(route) => {
               send({ type: "SELECT_ROUTE", routeId: route.id });
-              setShadowTimeOffsetMinutes(0);
               void cacheRoute(route);
             }}
             onStart={() => void start()}

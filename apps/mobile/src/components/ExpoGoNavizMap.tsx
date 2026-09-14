@@ -6,7 +6,13 @@ import MapView, { Marker, Polygon, Polyline } from "react-native-maps";
 import { decodePolyline } from "../api/polyline";
 import type { Coordinate, TravelMode } from "../api/types";
 import { colors, radius, shadow, spacing } from "../theme/tokens";
-import type { NavizMapProps } from "./NavizMap";
+import { NavigationAvatar } from "./NavigationAvatar";
+import {
+  bearingNearCoordinate,
+  navigationBearing,
+  navigationMarkerCoordinate,
+  type NavizMapProps,
+} from "./NavizMap";
 
 const ISRAEL_CENTER: Coordinate = { latitude: 31.7683, longitude: 35.2137 };
 
@@ -17,7 +23,6 @@ function ExpoGoNavizMapComponent({
   userHeadingDegrees,
   displayMode,
   shadowScene,
-  shadowLoading,
   mobilityVehicles,
   following,
   navigationActive,
@@ -25,8 +30,6 @@ function ExpoGoNavizMapComponent({
   onRecenter,
   onOverview,
   onDisplayModeChange,
-  onShadowTimeShift,
-  onShadowTimeReset,
   onMobilityVehiclePress,
 }: NavizMapProps) {
   const mapRef = useRef<MapView>(null);
@@ -38,6 +41,15 @@ function ExpoGoNavizMapComponent({
   const selectedGeometry = useMemo(
     () => (selectedRoute ? decodePolyline(selectedRoute.encoded_polyline) : []),
     [selectedRoute],
+  );
+  const matchedRouteBearing = bearingNearCoordinate(
+    selectedGeometry,
+    userCoordinate,
+  );
+  const navigationCourse = navigationBearing(
+    matchedRouteBearing,
+    userHeadingDegrees,
+    navigationActive,
   );
   const routeGeometries = useMemo(
     () =>
@@ -67,11 +79,7 @@ function ExpoGoNavizMapComponent({
       map.animateCamera(
         {
           center: userCoordinate,
-          heading: navigationActive
-            ? validHeading(userHeadingDegrees)
-              ? userHeadingDegrees
-              : routeBearing(selectedGeometry)
-            : 0,
+          heading: navigationActive ? navigationCourse : 0,
           pitch: is3d ? 55 : 0,
           zoom: navigationActive ? (is3d ? 17.4 : 16.7) : 15.2,
         },
@@ -92,16 +100,16 @@ function ExpoGoNavizMapComponent({
     navigationActive,
     selectedGeometry,
     userCoordinate,
-    userHeadingDegrees,
+    navigationCourse,
   ]);
 
   const shadowPolygons = shadowScene?.shadows ?? [];
   const verifiedShadowPolygons = shadowScene?.high_confidence_shadows ?? [];
-  const avatarHeading = following && navigationActive
-    ? 0
-    : validHeading(userHeadingDegrees)
-      ? userHeadingDegrees
-      : routeBearing(selectedGeometry);
+  const avatarHeading = following && navigationActive ? 0 : navigationCourse;
+  const avatarCoordinate = navigationMarkerCoordinate(
+    selectedGeometry,
+    userCoordinate,
+  );
 
   return (
     <View style={styles.container} accessibilityLabel={t("accessibility.map")}>
@@ -149,8 +157,9 @@ function ExpoGoNavizMapComponent({
           : null}
 
         {routeGeometries
-          .filter(({ route, coordinates }) =>
-            route.id !== selectedRoute?.id && coordinates.length >= 2,
+          .filter(
+            ({ route, coordinates }) =>
+              route.id !== selectedRoute?.id && coordinates.length >= 2,
           )
           .map(({ route, coordinates }) => (
             <Polyline
@@ -173,31 +182,27 @@ function ExpoGoNavizMapComponent({
             lineJoin="round"
           />
         ) : null}
-        {selectedLegs.length > 0
-          ? selectedLegs.map((leg) => (
-              <Polyline
-                key={leg.id}
-                coordinates={leg.coordinates}
-                strokeColor={legColor(leg.mode)}
-                strokeWidth={7}
-                {...(leg.mode === "transit"
-                  ? { lineDashPattern: [14, 5] }
-                  : {})}
-                lineCap="round"
-                lineJoin="round"
-              />
-            ))
-          : selectedGeometry.length >= 2
-            ? (
-                <Polyline
-                  coordinates={selectedGeometry}
-                  strokeColor={legColor(travelMode)}
-                  strokeWidth={7}
-                  lineCap="round"
-                  lineJoin="round"
-                />
-              )
-            : null}
+        {selectedLegs.length > 0 ? (
+          selectedLegs.map((leg) => (
+            <Polyline
+              key={leg.id}
+              coordinates={leg.coordinates}
+              strokeColor={legColor(leg.mode)}
+              strokeWidth={7}
+              {...(leg.mode === "transit" ? { lineDashPattern: [14, 5] } : {})}
+              lineCap="round"
+              lineJoin="round"
+            />
+          ))
+        ) : selectedGeometry.length >= 2 ? (
+          <Polyline
+            coordinates={selectedGeometry}
+            strokeColor={legColor(travelMode)}
+            strokeWidth={7}
+            lineCap="round"
+            lineJoin="round"
+          />
+        ) : null}
 
         {selectedRoute?.annotations.map((annotation, index) => {
           const coordinates = selectedGeometry.slice(
@@ -220,7 +225,10 @@ function ExpoGoNavizMapComponent({
         })}
 
         {selectedGeometry.at(-1) ? (
-          <Marker coordinate={selectedGeometry.at(-1)!} anchor={{ x: 0.5, y: 0.5 }}>
+          <Marker
+            coordinate={selectedGeometry.at(-1)!}
+            anchor={{ x: 0.5, y: 0.5 }}
+          >
             <View style={styles.destinationOuter}>
               <View style={styles.destinationInner} />
             </View>
@@ -242,11 +250,11 @@ function ExpoGoNavizMapComponent({
           </Marker>
         ))}
 
-        {userCoordinate ? (
+        {avatarCoordinate ? (
           <Marker
-            coordinate={userCoordinate}
-            anchor={{ x: 0.5, y: 0.5 }}
-            flat
+            coordinate={avatarCoordinate}
+            anchor={is3d ? { x: 0.5, y: 0.82 } : { x: 0.5, y: 0.5 }}
+            flat={!is3d}
             rotation={avatarHeading}
             accessibilityLabel={
               rtl
@@ -254,43 +262,14 @@ function ExpoGoNavizMapComponent({
                 : `Your ${t(`mode.${travelMode}`)} navigation position`
             }
           >
-            <NavigationAvatar mode={travelMode} active={navigationActive} />
+            <NavigationAvatar
+              mode={travelMode}
+              displayMode={displayMode}
+              active={navigationActive}
+            />
           </Marker>
         ) : null}
       </MapView>
-
-      {is3d && (shadowLoading || shadowScene?.available) ? (
-        <View style={styles.shadowPanel}>
-          <Text style={[styles.shadowLabel, rtl && styles.rtlText]} numberOfLines={2}>
-            {shadowLoading
-              ? t("shadow3d.loading")
-              : t("shadow3d.scene", {
-                  value: new Date(shadowScene!.at).toLocaleTimeString(
-                    rtl ? "he-IL" : "en-IL",
-                    { hour: "2-digit", minute: "2-digit" },
-                  ),
-                })}
-          </Text>
-          <View style={[styles.shadowButtons, rtl && styles.rowReverse]}>
-            <SmallButton
-              label="−15"
-              accessibilityLabel={t("shadow3d.earlier")}
-              onPress={() => onShadowTimeShift(-15)}
-            />
-            <SmallButton
-              label={t("shadow3d.reset")}
-              accessibilityLabel={t("shadow3d.resetTime")}
-              onPress={onShadowTimeReset}
-              wide
-            />
-            <SmallButton
-              label="+15"
-              accessibilityLabel={t("shadow3d.later")}
-              onPress={() => onShadowTimeShift(15)}
-            />
-          </View>
-        </View>
-      ) : null}
 
       <View
         style={[
@@ -329,83 +308,6 @@ function ExpoGoNavizMapComponent({
   );
 }
 
-function SmallButton({
-  label,
-  accessibilityLabel,
-  onPress,
-  wide = false,
-}: {
-  label: string;
-  accessibilityLabel: string;
-  onPress: () => void;
-  wide?: boolean;
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      onPress={onPress}
-      style={[styles.smallButton, wide && styles.smallButtonWide]}
-    >
-      <Text style={styles.smallButtonText} numberOfLines={1}>
-        {label}
-      </Text>
-    </Pressable>
-  );
-}
-
-function NavigationAvatar({ mode, active }: { mode: TravelMode; active: boolean }) {
-  const kind = avatarKind(mode);
-  const color = legColor(mode);
-  return (
-    <View style={[styles.avatar, !active && styles.avatarIdle]}>
-      <View style={[styles.avatarHalo, { borderColor: color }]} />
-      <View style={[styles.avatarNose, { borderBottomColor: color }]} />
-      {kind === "person" ? (
-        <View style={styles.person}>
-          <View style={[styles.personHead, { backgroundColor: color }]} />
-          <View style={[styles.personBody, { backgroundColor: color }]} />
-          <View style={styles.personLegs}>
-            <View style={[styles.personLeg, { backgroundColor: color }]} />
-            <View style={[styles.personLeg, { backgroundColor: color }]} />
-          </View>
-        </View>
-      ) : kind === "two_wheeler" ? (
-        <View style={styles.twoWheeler}>
-          <View style={[styles.wheel, { borderColor: color }]} />
-          <View style={[styles.twoWheelerBody, { backgroundColor: color }]} />
-          <View style={[styles.wheel, { borderColor: color }]} />
-        </View>
-      ) : (
-        <View
-          style={[
-            styles.vehicle,
-            kind === "truck" && styles.truck,
-            kind === "transit" && styles.transit,
-            { backgroundColor: color },
-          ]}
-        >
-          <View style={styles.windshield} />
-          <View style={styles.headlights}>
-            <View style={styles.headlight} />
-            <View style={styles.headlight} />
-          </View>
-        </View>
-      )}
-    </View>
-  );
-}
-
-function avatarKind(mode: TravelMode) {
-  if (mode === "walk") return "person";
-  if (mode === "bike" || mode === "scooter" || mode === "motorcycle") {
-    return "two_wheeler";
-  }
-  if (mode === "truck") return "truck";
-  if (mode === "transit" || mode.endsWith("_transit")) return "transit";
-  return "car";
-}
-
 function legColor(mode: TravelMode): string {
   if (mode === "walk") return colors.shade;
   if (mode === "bike" || mode === "scooter") return "#059669";
@@ -424,29 +326,6 @@ function annotationColor(classification: string): string {
 
 function isRoadMode(mode: TravelMode): boolean {
   return mode === "car" || mode === "motorcycle" || mode === "truck";
-}
-
-function validHeading(value: number | null): value is number {
-  return value !== null && Number.isFinite(value) && value >= 0;
-}
-
-function routeBearing(geometry: Coordinate[]): number {
-  const first = geometry[0];
-  const second = geometry.find(
-    (point, index) =>
-      index > 0 &&
-      first &&
-      (point.latitude !== first.latitude || point.longitude !== first.longitude),
-  );
-  if (!first || !second) return 0;
-  const lat1 = (first.latitude * Math.PI) / 180;
-  const lat2 = (second.latitude * Math.PI) / 180;
-  const deltaLongitude = ((second.longitude - first.longitude) * Math.PI) / 180;
-  const y = Math.sin(deltaLongitude) * Math.cos(lat2);
-  const x =
-    Math.cos(lat1) * Math.sin(lat2) -
-    Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLongitude);
-  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
 }
 
 export const ExpoGoNavizMap = memo(ExpoGoNavizMapComponent);
@@ -480,36 +359,6 @@ const styles = StyleSheet.create({
   },
   recenterText: { color: colors.primaryDark, fontSize: 28, fontWeight: "800" },
   overviewText: { color: colors.primaryDark, fontSize: 25, fontWeight: "800" },
-  shadowPanel: {
-    position: "absolute",
-    top: 112,
-    left: spacing.md,
-    maxWidth: 236,
-    padding: spacing.xs,
-    gap: spacing.xs,
-    borderRadius: radius.md,
-    backgroundColor: "rgba(255,255,255,0.94)",
-    ...shadow,
-  },
-  shadowLabel: {
-    color: colors.ink,
-    fontSize: 11,
-    lineHeight: 14,
-    fontWeight: "800",
-    paddingHorizontal: spacing.xs,
-  },
-  shadowButtons: { flexDirection: "row", gap: spacing.xs },
-  smallButton: {
-    minWidth: 48,
-    minHeight: 44,
-    paddingHorizontal: spacing.xs,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surfaceElevated,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  smallButtonWide: { flex: 1 },
-  smallButtonText: { color: colors.ink, fontSize: 11, fontWeight: "900" },
   destinationOuter: {
     width: 23,
     height: 23,
@@ -537,60 +386,4 @@ const styles = StyleSheet.create({
     ...shadow,
   },
   mobilityMarkerText: { color: colors.surface, fontWeight: "900" },
-  avatar: { width: 54, height: 54, alignItems: "center", justifyContent: "center" },
-  avatarIdle: { transform: [{ scale: 0.84 }] },
-  avatarHalo: {
-    position: "absolute",
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    borderWidth: 3,
-    backgroundColor: "rgba(255,255,255,0.92)",
-    ...shadow,
-  },
-  avatarNose: {
-    position: "absolute",
-    top: -2,
-    width: 0,
-    height: 0,
-    borderLeftWidth: 7,
-    borderRightWidth: 7,
-    borderBottomWidth: 12,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-  },
-  person: { alignItems: "center", gap: 1 },
-  personHead: { width: 9, height: 9, borderRadius: 5 },
-  personBody: { width: 9, height: 14, borderRadius: 4 },
-  personLegs: { flexDirection: "row", gap: 3 },
-  personLeg: { width: 3, height: 8, borderRadius: 2 },
-  twoWheeler: { alignItems: "center", gap: 1 },
-  wheel: { width: 13, height: 13, borderRadius: 7, borderWidth: 3 },
-  twoWheelerBody: { width: 5, height: 11, borderRadius: 3 },
-  vehicle: {
-    width: 22,
-    height: 31,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: colors.surface,
-    alignItems: "center",
-    paddingTop: 4,
-  },
-  truck: { width: 25, height: 34, borderRadius: 5 },
-  transit: { width: 26, height: 35, borderRadius: 6 },
-  windshield: {
-    width: 14,
-    height: 7,
-    borderRadius: 3,
-    backgroundColor: "rgba(224,242,254,0.94)",
-  },
-  headlights: {
-    position: "absolute",
-    top: 1,
-    left: 3,
-    right: 3,
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  headlight: { width: 4, height: 3, borderRadius: 2, backgroundColor: "#FEF08A" },
 });

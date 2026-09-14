@@ -19,6 +19,7 @@ import type {
   TravelMode,
 } from "../api/types";
 import { colors, radius, shadow, spacing } from "../theme/tokens";
+import { NavigationAvatar, navigationAvatarKind } from "./NavigationAvatar";
 
 const MAP_STYLE = "https://tiles.openfreemap.org/styles/bright";
 const ISRAEL_CENTER: Coordinate = { latitude: 31.7683, longitude: 35.2137 };
@@ -32,7 +33,6 @@ export interface NavizMapProps {
   userHeadingDegrees: number | null;
   displayMode: MapDisplayMode;
   shadowScene: ShadowSceneResponse | null;
-  shadowLoading: boolean;
   mobilityVehicles: MobilityVehicle[];
   following: boolean;
   navigationActive: boolean;
@@ -40,8 +40,6 @@ export interface NavizMapProps {
   onRecenter: () => void;
   onOverview: () => void;
   onDisplayModeChange: (mode: MapDisplayMode) => void;
-  onShadowTimeShift: (minutes: number) => void;
-  onShadowTimeReset: () => void;
   onMobilityVehiclePress: (vehicle: MobilityVehicle) => void;
 }
 
@@ -52,7 +50,6 @@ function NavizMapComponent({
   userHeadingDegrees,
   displayMode,
   shadowScene,
-  shadowLoading,
   mobilityVehicles,
   following,
   navigationActive,
@@ -60,11 +57,9 @@ function NavizMapComponent({
   onRecenter,
   onOverview,
   onDisplayModeChange,
-  onShadowTimeShift,
-  onShadowTimeReset,
   onMobilityVehiclePress,
 }: NavizMapProps) {
-  const { i18n, t } = useTranslation();
+  const { t } = useTranslation();
   const selectedRoute =
     routes.find((route) => route.id === selectedRouteId) ?? routes[0] ?? null;
   const effectiveSelectedRouteId = selectedRoute?.id ?? null;
@@ -140,7 +135,10 @@ function NavizMapComponent({
         },
         geometry: {
           type: "Point" as const,
-          coordinates: [vehicle.coordinate.longitude, vehicle.coordinate.latitude],
+          coordinates: [
+            vehicle.coordinate.longitude,
+            vehicle.coordinate.latitude,
+          ],
         },
       })),
     }),
@@ -168,11 +166,16 @@ function NavizMapComponent({
     () => bearingNearCoordinate(geometry, userCoordinate),
     [geometry, userCoordinate],
   );
-  const cameraBearing =
-    userHeadingDegrees !== null && userHeadingDegrees >= 0
-      ? normalizeDegrees(userHeadingDegrees)
-      : routeBearing;
-  const mapBearing = following ? cameraBearing : isFinite(routeBearing) ? routeBearing : 0;
+  const cameraBearing = navigationBearing(
+    routeBearing,
+    userHeadingDegrees,
+    navigationActive,
+  );
+  const mapBearing = following
+    ? cameraBearing
+    : isFinite(routeBearing)
+      ? routeBearing
+      : 0;
   const navigationMarker = useMemo(
     () => navigationMarkerCoordinate(geometry, userCoordinate),
     [geometry, userCoordinate],
@@ -208,8 +211,6 @@ function NavizMapComponent({
     [shadowScene],
   );
   const is3d = displayMode === "3d";
-  const rtl = i18n.resolvedLanguage === "he";
-
   return (
     <View style={styles.container} accessibilityLabel={t("accessibility.map")}>
       <Map
@@ -222,10 +223,7 @@ function NavizMapComponent({
       >
         {following && userCoordinate ? (
           <Camera
-            center={[
-              navigationTarget.longitude,
-              navigationTarget.latitude,
-            ]}
+            center={[navigationTarget.longitude, navigationTarget.latitude]}
             zoom={
               navigationActive
                 ? is3d
@@ -546,6 +544,7 @@ function NavizMapComponent({
           >
             <NavigationAvatar
               mode={travelMode}
+              displayMode={displayMode}
               rotationDegrees={markerRotationDegrees}
               accessibilityLabel={t("navigation.positionMarker", {
                 mode: t(`mode.${travelMode}`),
@@ -604,77 +603,13 @@ function NavizMapComponent({
         ) : null}
       </Map>
 
-      {is3d &&
-      selectedRoute &&
-      !navigationActive &&
-      (shadowLoading || shadowScene?.available) ? (
-        <View style={styles.shadowTimePanel}>
-          <View style={[styles.shadowStatus, rtl && styles.rowReverse]}>
-            <View
-              style={[
-                styles.shadowStatusDot,
-                shadowScene?.available && styles.shadowStatusDotReady,
-              ]}
-            />
-            <Text style={[styles.lightingLabel, rtl && styles.rtlText]}>
-              {shadowLoading
-                ? t("shadow3d.loading")
-                : shadowScene?.available
-                  ? shadowScene.solar_elevation_degrees <= 0
-                    ? t("shadow3d.night")
-                    : t("shadow3d.scene", {
-                        value: new Date(shadowScene.at).toLocaleTimeString(
-                          rtl ? "he-IL" : "en-IL",
-                          {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: false,
-                            timeZone: "Asia/Jerusalem",
-                          },
-                        ),
-                      })
-                  : t("shadow3d.unavailable")}
-            </Text>
-          </View>
-          <View style={[styles.shadowTimeControls, rtl && styles.rowReverse]}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("shadow3d.earlier")}
-              onPress={() => onShadowTimeShift(-15)}
-              style={styles.shadowTimeButton}
-            >
-              <Text style={styles.shadowTimeButtonText}>−15</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("shadow3d.resetTime")}
-              onPress={onShadowTimeReset}
-              style={styles.shadowTimeReset}
-            >
-              <Text style={styles.shadowTimeResetText}>{t("shadow3d.reset")}</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("shadow3d.later")}
-              onPress={() => onShadowTimeShift(15)}
-              style={styles.shadowTimeButton}
-            >
-              <Text style={styles.shadowTimeButtonText}>+15</Text>
-            </Pressable>
-          </View>
-        </View>
-      ) : null}
-
       <View
         style={[
           styles.mapControls,
           navigationActive && styles.mapControlsWhileNavigating,
         ]}
       >
-        <MapModeToggle
-          value={displayMode}
-          onChange={onDisplayModeChange}
-        />
+        <MapModeToggle value={displayMode} onChange={onDisplayModeChange} />
         {selectedRoute && !following ? (
           <Pressable
             accessibilityRole="button"
@@ -765,7 +700,10 @@ export function buildRouteLegFeatureCollection(
 ): GeoJSON.FeatureCollection<GeoJSON.LineString> {
   if (!route) return { type: "FeatureCollection", features: [] };
   const legs = route.legs.length
-    ? route.legs.map((leg) => ({ mode: leg.mode, polyline: leg.encoded_polyline }))
+    ? route.legs.map((leg) => ({
+        mode: leg.mode,
+        polyline: leg.encoded_polyline,
+      }))
     : [{ mode: fallbackMode, polyline: route.encoded_polyline }];
   return {
     type: "FeatureCollection",
@@ -858,20 +796,10 @@ export function buildHeadingFeatureCollection(
 }
 
 export type NavigationMarkerKind =
-  | "person"
-  | "two_wheeler"
-  | "car"
-  | "truck"
-  | "transit";
+  "person" | "two_wheeler" | "car" | "truck" | "transit";
 
 export function navigationMarkerKind(mode: TravelMode): NavigationMarkerKind {
-  if (mode === "walk") return "person";
-  if (mode === "bike" || mode === "scooter" || mode === "motorcycle") {
-    return "two_wheeler";
-  }
-  if (mode === "truck") return "truck";
-  if (mode === "transit" || mode.endsWith("_transit")) return "transit";
-  return "car";
+  return navigationAvatarKind(mode);
 }
 
 export function navigationMarkerRotation(
@@ -879,6 +807,24 @@ export function navigationMarkerRotation(
   mapBearingDegrees: number,
 ): number {
   return normalizeSignedDegrees(headingDegrees - mapBearingDegrees);
+}
+
+export function navigationBearing(
+  routeBearingDegrees: number,
+  gpsHeadingDegrees: number | null,
+  navigationActive: boolean,
+): number {
+  const routeBearingDegreesNormalized = normalizeDegrees(routeBearingDegrees);
+  if (gpsHeadingDegrees === null || gpsHeadingDegrees < 0) {
+    return routeBearingDegreesNormalized;
+  }
+  const gpsHeadingDegreesNormalized = normalizeDegrees(gpsHeadingDegrees);
+  if (!navigationActive) return gpsHeadingDegreesNormalized;
+
+  // The matched route supplies a stable forward course at walking speed, while
+  // stopped, and in urban canyons where a compass heading oscillates. Rerouting
+  // updates this course as soon as the user genuinely leaves the route.
+  return routeBearingDegreesNormalized;
 }
 
 export function navigationMarkerCoordinate(
@@ -898,7 +844,8 @@ export function navigationMarkerCoordinate(
     const start = geometry[index];
     const end = geometry[index + 1];
     if (!start || !end) continue;
-    const startX = (start.longitude - userCoordinate.longitude) * longitudeScale;
+    const startX =
+      (start.longitude - userCoordinate.longitude) * longitudeScale;
     const startY = start.latitude - userCoordinate.latitude;
     const endX = (end.longitude - userCoordinate.longitude) * longitudeScale;
     const endY = end.latitude - userCoordinate.latitude;
@@ -911,8 +858,7 @@ export function navigationMarkerCoordinate(
         : clamp(-(startX * deltaX + startY * deltaY) / lengthSquared, 0, 1);
     const candidate: Coordinate = {
       latitude: start.latitude + (end.latitude - start.latitude) * ratio,
-      longitude:
-        start.longitude + (end.longitude - start.longitude) * ratio,
+      longitude: start.longitude + (end.longitude - start.longitude) * ratio,
     };
     const distanceM = distanceMeters(userCoordinate, candidate);
     if (distanceM < bestDistanceM) {
@@ -921,67 +867,9 @@ export function navigationMarkerCoordinate(
     }
   }
 
-  return bestDistanceM <= maximumSnapDistanceM ? bestCoordinate : userCoordinate;
-}
-
-function NavigationAvatar({
-  mode,
-  rotationDegrees,
-  accessibilityLabel,
-}: {
-  mode: TravelMode;
-  rotationDegrees: number;
-  accessibilityLabel: string;
-}) {
-  const kind = navigationMarkerKind(mode);
-  const accent = ROUTE_COLORS[mode];
-  return (
-    <View
-      accessible
-      accessibilityRole="image"
-      accessibilityLabel={accessibilityLabel}
-      style={[
-        styles.navigationAvatar,
-        { transform: [{ rotate: `${rotationDegrees}deg` }] },
-      ]}
-    >
-      <View style={[styles.navigationAvatarHalo, { borderColor: accent }]} />
-      <View style={[styles.navigationAvatarNose, { borderBottomColor: accent }]} />
-      {kind === "person" ? (
-        <View style={styles.personMarker}>
-          <View style={[styles.personHead, { backgroundColor: accent }]} />
-          <View style={[styles.personBody, { backgroundColor: accent }]} />
-          <View style={[styles.personArms, { backgroundColor: accent }]} />
-          <View style={styles.personLegs}>
-            <View style={[styles.personLeg, { backgroundColor: accent }]} />
-            <View style={[styles.personLeg, { backgroundColor: accent }]} />
-          </View>
-        </View>
-      ) : kind === "two_wheeler" ? (
-        <View style={styles.twoWheelerMarker}>
-          <View style={[styles.wheel, { borderColor: accent }]} />
-          <View style={[styles.twoWheelerBody, { backgroundColor: accent }]} />
-          <View style={[styles.wheel, { borderColor: accent }]} />
-        </View>
-      ) : (
-        <View
-          style={[
-            styles.vehicleMarker,
-            kind === "truck" && styles.truckMarker,
-            kind === "transit" && styles.transitMarker,
-            { backgroundColor: accent },
-          ]}
-        >
-          <View style={styles.vehicleWindshield} />
-          <View style={styles.vehicleRoof} />
-          <View style={styles.vehicleLights}>
-            <View style={styles.vehicleLight} />
-            <View style={styles.vehicleLight} />
-          </View>
-        </View>
-      )}
-    </View>
-  );
+  return bestDistanceM <= maximumSnapDistanceM
+    ? bestCoordinate
+    : userCoordinate;
 }
 
 export interface NavigationCameraProfile {
@@ -998,12 +886,15 @@ export function navigationCameraProfile(
     return { zoom2d: 18, zoom3d: 17.95, pitch: 55, lookAheadM: 70 };
   }
   if (mode === "bike" || mode === "scooter") {
-    return { zoom2d: 17.5, zoom3d: 17.5, pitch: 54, lookAheadM: 125 };
+    return { zoom2d: 17.5, zoom3d: 17.5, pitch: 54, lookAheadM: 90 };
   }
   if (mode === "transit" || mode.endsWith("_transit")) {
-    return { zoom2d: 16.6, zoom3d: 16.9, pitch: 50, lookAheadM: 260 };
+    return { zoom2d: 16.6, zoom3d: 16.9, pitch: 50, lookAheadM: 160 };
   }
-  return { zoom2d: 17.2, zoom3d: 17.05, pitch: 54, lookAheadM: 190 };
+  // Keep the vehicle visible above the bottom navigation card. A longer
+  // look-ahead pushed the geographic marker underneath the HUD on short first
+  // maneuvers, particularly just before a turn.
+  return { zoom2d: 17.2, zoom3d: 17.05, pitch: 54, lookAheadM: 95 };
 }
 
 export function navigationCameraTarget(
@@ -1132,7 +1023,7 @@ export function solarStyleLight(
   };
 }
 
-function bearingNearCoordinate(
+export function bearingNearCoordinate(
   geometry: Coordinate[],
   currentCoordinate: Coordinate | null,
 ): number {
@@ -1193,63 +1084,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#E5E7EB" },
   map: { flex: 1 },
   rowReverse: { flexDirection: "row-reverse" },
-  rtlText: { textAlign: "right", writingDirection: "rtl" },
-  shadowTimePanel: {
-    position: "absolute",
-    top: 112,
-    left: spacing.md,
-    maxWidth: 236,
-    gap: spacing.xs,
-    padding: spacing.xs,
-    borderRadius: radius.md,
-    backgroundColor: "rgba(255,255,255,0.94)",
-    ...shadow,
-  },
-  shadowStatus: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    paddingHorizontal: spacing.xs,
-    minHeight: 28,
-  },
-  shadowStatusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.muted,
-  },
-  shadowStatusDotReady: { backgroundColor: colors.success },
-  lightingLabel: {
-    flexShrink: 1,
-    color: colors.ink,
-    fontSize: 11,
-    lineHeight: 14,
-    fontWeight: "800",
-  },
-  shadowTimeControls: {
-    flexDirection: "row",
-    gap: spacing.xs,
-    alignItems: "center",
-  },
-  shadowTimeButton: {
-    minWidth: 48,
-    minHeight: 44,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surfaceElevated,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  shadowTimeButtonText: { color: colors.primaryDark, fontWeight: "900" },
-  shadowTimeReset: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surfaceElevated,
-    paddingHorizontal: spacing.sm,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  shadowTimeResetText: { color: colors.ink, fontSize: 11, fontWeight: "800" },
   mapControls: {
     position: "absolute",
     right: spacing.md,
@@ -1273,87 +1107,4 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: 0.4,
   },
-  navigationAvatar: {
-    width: 52,
-    height: 52,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  navigationAvatarHalo: {
-    position: "absolute",
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 3,
-    backgroundColor: "rgba(255,255,255,0.9)",
-    ...shadow,
-  },
-  navigationAvatarNose: {
-    position: "absolute",
-    top: -2,
-    width: 0,
-    height: 0,
-    borderLeftWidth: 7,
-    borderRightWidth: 7,
-    borderBottomWidth: 12,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-  },
-  vehicleMarker: {
-    width: 22,
-    height: 31,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: colors.surface,
-    alignItems: "center",
-    paddingTop: 4,
-  },
-  truckMarker: { width: 24, height: 33, borderRadius: 5 },
-  transitMarker: { width: 25, height: 34, borderRadius: 6 },
-  vehicleWindshield: {
-    width: 14,
-    height: 7,
-    borderRadius: 3,
-    backgroundColor: "rgba(224,242,254,0.92)",
-  },
-  vehicleRoof: {
-    flex: 1,
-    width: 10,
-    marginVertical: 2,
-    borderRadius: 3,
-    backgroundColor: "rgba(255,255,255,0.25)",
-  },
-  vehicleLights: {
-    width: 15,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingBottom: 2,
-  },
-  vehicleLight: {
-    width: 4,
-    height: 3,
-    borderRadius: 2,
-    backgroundColor: "#FEF3C7",
-  },
-  personMarker: { width: 24, height: 34, alignItems: "center" },
-  personHead: { width: 9, height: 9, borderRadius: 5 },
-  personBody: { width: 7, height: 13, borderRadius: 4, marginTop: 1 },
-  personArms: {
-    position: "absolute",
-    top: 13,
-    width: 21,
-    height: 5,
-    borderRadius: 3,
-  },
-  personLegs: { flexDirection: "row", gap: 4 },
-  personLeg: { width: 5, height: 10, borderRadius: 3 },
-  twoWheelerMarker: { width: 20, height: 35, alignItems: "center" },
-  wheel: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    borderWidth: 3,
-    backgroundColor: colors.surface,
-  },
-  twoWheelerBody: { width: 6, height: 11, borderRadius: 3 },
 });

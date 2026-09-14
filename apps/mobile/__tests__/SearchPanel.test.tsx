@@ -125,4 +125,31 @@ describe("SearchPanel localization and controls", () => {
     expect(screen.getByText("Bike + transit")).toBeTruthy();
     expect(screen.queryByText("More travel modes")).toBeNull();
   });
+
+  it("shows rich search metadata and distance without confidence jargon", async () => {
+    await i18n.changeLanguage("en");
+    const restaurant: Place = {
+      id: "prozdor",
+      name: "Prozdor",
+      name_he: "הפרוזדור",
+      subtitle: "Mendele Mokher Sfarim Street 6, Tel Aviv-Yafo",
+      coordinate: { latitude: 32.0789, longitude: 34.7741 },
+      category: "restaurant",
+      confidence: "medium",
+    };
+    const screen = render(
+      <SearchPanel
+        {...defaults}
+        locale="en"
+        query="Prozdor"
+        results={[restaurant]}
+        proximity={{ latitude: 32.09, longitude: 34.78 }}
+      />,
+    );
+
+    expect(screen.getByText("Restaurant")).toBeTruthy();
+    expect(screen.getByText(/km$/)).toBeTruthy();
+    expect(screen.getByText(restaurant.subtitle!)).toBeTruthy();
+    expect(screen.queryByText("Medium confidence")).toBeNull();
+  });
 });

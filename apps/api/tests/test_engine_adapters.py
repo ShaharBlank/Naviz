@@ -1,8 +1,14 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import pytest
-from naviz_api.engine_adapters import OpenTripPlannerAdapter, TransitousAdapter, ValhallaAdapter
+from naviz_api.engine_adapters import (
+    EngineItinerary,
+    EngineLeg,
+    OpenTripPlannerAdapter,
+    TransitousAdapter,
+    ValhallaAdapter,
+)
 from naviz_api.geometry import encode_polyline, haversine_m
 from naviz_api.models import (
     Coordinate,
@@ -43,6 +49,43 @@ def test_valhalla_request_preserves_truck_dimensions() -> None:
     assert payload["costing"] == "truck"
     assert payload["costing_options"] == {"truck": {"height": 3.8, "width": 2.4, "weight": 18.0}}
     assert payload["date_time"] == {"type": 1, "value": "2026-08-02T09:00"}
+
+
+def test_valhalla_probes_near_and_broad_alternative_corridors() -> None:
+    request = RoutePlanRequest(
+        origin=ORIGIN,
+        destination=DESTINATION,
+        depart_at=datetime(2026, 8, 2, 9, 0, tzinfo=TZ),
+        mode=TravelMode.CAR,
+        include_comparisons=True,
+    )
+    primary = EngineItinerary(
+        departure_at=request.depart_at,
+        arrival_at=request.depart_at + timedelta(minutes=10),
+        legs=(
+            EngineLeg(
+                mode=TravelMode.CAR,
+                geometry=(ORIGIN, Coordinate(latitude=32.076, longitude=34.774), DESTINATION),
+                distance_m=4_000,
+                duration_s=600,
+                from_name="Origin",
+                to_name="Destination",
+            ),
+        ),
+    )
+
+    payloads = ValhallaAdapter._alternative_payloads(request, primary)
+
+    assert len(payloads) == 4
+    via_points = {
+        (
+            round(payload["locations"][1]["lat"], 6),
+            round(payload["locations"][1]["lon"], 6),
+        )
+        for payload in payloads
+    }
+    assert len(via_points) == 4
+    assert all(payload["alternates"] == 0 for payload in payloads)
 
 
 def test_otp_drops_full_size_bike_trip_with_unknown_permission() -> None:

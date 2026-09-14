@@ -79,15 +79,12 @@ export function RouteCards({
           const distance = t("metrics.kilometers", {
             value: formatDistance(route.metrics.distance_m),
           });
-          const arrival = formatIsraelTime(
-            route.arrival_at,
-            rtl ? "he" : "en",
-          );
+          const arrival = formatIsraelTime(route.arrival_at, rtl ? "he" : "en");
           const fallback =
             route.fallback_reason &&
             route.fallback_reason !== "no_material_signal_reduction"
-            ? t(`fallback.${route.fallback_reason}`, { defaultValue: "" })
-            : "";
+              ? t(`fallback.${route.fallback_reason}`, { defaultValue: "" })
+              : "";
           const transitLeg = route.legs.find(
             (leg) => leg.mode === "transit" && leg.transit,
           );
@@ -97,8 +94,9 @@ export function RouteCards({
             fastestRoute?.metrics.distance_m ?? route.metrics.distance_m,
             t,
           );
-          const details = metricLabels(route, Boolean(transitLeg), t).join(", ");
-          const confidenceColors = confidencePalette(route.quality.confidence);
+          const details = metricLabels(route, Boolean(transitLeg), t).join(
+            ", ",
+          );
           return (
             <Pressable
               key={route.id}
@@ -119,21 +117,6 @@ export function RouteCards({
                   {t(routeLabelKey(route.label_key))}
                 </Text>
                 {selected ? <Text style={styles.selectedMark}>✓</Text> : null}
-                <View
-                  style={[
-                    styles.confidence,
-                    { backgroundColor: confidenceColors.background },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.confidenceText,
-                      { color: confidenceColors.foreground },
-                    ]}
-                  >
-                    {t(`confidence.${route.quality.confidence}`)}
-                  </Text>
-                </View>
               </View>
               <View style={[styles.primaryMetrics, rtl && styles.rowReverse]}>
                 <View style={[styles.etaGroup, rtl && styles.rowReverse]}>
@@ -253,7 +236,10 @@ export function RouteCards({
         })}
       </ScrollView>
       <Pressable
-        style={[styles.startButton, !startEnabled && styles.startButtonDisabled]}
+        style={[
+          styles.startButton,
+          !startEnabled && styles.startButtonDisabled,
+        ]}
         onPress={startEnabled ? onStart : undefined}
         disabled={!startEnabled}
         accessibilityRole="button"
@@ -311,7 +297,9 @@ function comparisonText(
   const extraMeters = route.metrics.distance_m - shortestDistance;
   if (extraSeconds >= 30) {
     parts.push(
-      t("metrics.moreTime", { value: Math.max(1, Math.round(extraSeconds / 60)) }),
+      t("metrics.moreTime", {
+        value: Math.max(1, Math.round(extraSeconds / 60)),
+      }),
     );
   }
   if (extraMeters >= 50) {
@@ -322,19 +310,6 @@ function comparisonText(
   return parts.length > 0
     ? t("metrics.comparedWithFastest", { value: parts.join(" · ") })
     : "";
-}
-
-function confidencePalette(confidence: string): {
-  background: string;
-  foreground: string;
-} {
-  if (confidence === "high") {
-    return { background: "#DCFCE7", foreground: colors.success };
-  }
-  if (confidence === "medium") {
-    return { background: "#FEF3C7", foreground: "#92400E" };
-  }
-  return { background: "#F1F5F9", foreground: colors.muted };
 }
 
 function Metric({ color, text }: { color: string; text: string }) {
@@ -394,13 +369,6 @@ const styles = StyleSheet.create({
   name: { fontSize: 17, fontWeight: "900", color: colors.ink, flex: 1 },
   selectedMark: { color: colors.primary, fontSize: 18, fontWeight: "900" },
   rtl: { textAlign: "right", writingDirection: "rtl" },
-  confidence: {
-    borderRadius: radius.pill,
-    backgroundColor: "#DCFCE7",
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  confidenceText: { color: colors.success, fontSize: 10, fontWeight: "800" },
   comparisonDelta: {
     color: colors.primaryDark,
     fontSize: 12,

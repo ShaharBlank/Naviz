@@ -85,7 +85,7 @@ export async function searchPlaces(
   const parameters = new URLSearchParams({
     q: query,
     language: locale,
-    limit: "8",
+    limit: "12",
   });
   if (proximity) {
     parameters.set("latitude", String(proximity.latitude));

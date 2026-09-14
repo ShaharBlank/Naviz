@@ -149,10 +149,7 @@ class SqliteOsmRouteContext:
         if len(points) < 2:
             raise ValueError("Shadow scene requires a route with at least two points")
         line = LineString(
-            [
-                _WGS84_TO_ITM.transform(point.longitude, point.latitude)
-                for point in points
-            ]
+            [_WGS84_TO_ITM.transform(point.longitude, point.latitude) for point in points]
         )
         visible_corridor = line.buffer(request.corridor_m)
         # A building outside the visible corridor can still cast into it.
@@ -197,9 +194,7 @@ class SqliteOsmRouteContext:
             request.at,
             points[0],
         )
-        clipped = shadows.intersection(visible_corridor).simplify(
-            0.65, preserve_topology=True
-        )
+        clipped = shadows.intersection(visible_corridor).simplify(0.65, preserve_topology=True)
         clipped_high = high_shadows.intersection(visible_corridor).simplify(
             0.65, preserve_topology=True
         )
@@ -454,30 +449,20 @@ class RouteFeatureAnalyzer:
         enriched = [_annotate_shade(route, shadows, high_shadows, sun_up) for route in routes]
         fastest = min(enriched, key=lambda route: route.metrics.duration_s)
         if request.include_comparisons:
-            balanced = self._best_shade_route(request, enriched, fastest, 15.0).model_copy(
+            balanced = self._best_balanced_shade_route(request, enriched, fastest, 15.0).model_copy(
                 update={"label_key": "route.balancedShade"}
             )
-            maximum = self._best_shade_route(request, enriched, fastest, 30.0).model_copy(
+            maximum = self._best_maximum_shade_route(request, enriched, fastest, 30.0).model_copy(
                 update={"label_key": "route.maximumShade"}
             )
-            fastest = fastest.model_copy(update={"label_key": "route.fastest"})
-            preference_label = {
-                RoutePreference.BALANCED_SHADE: "route.balancedShade",
-                RoutePreference.MAXIMUM_SHADE: "route.maximumShade",
-            }.get(request.preference, "route.fastest")
-            comparison = [fastest, balanced, maximum]
-            comparison = [
-                route
-                for _, route in sorted(
-                    enumerate(comparison),
-                    key=lambda item: (item[1].label_key != preference_label, item[0]),
-                )
-            ]
-            comparison = _deduplicate_route_geometry(comparison)
-            if len(comparison) == 1:
-                comparison[0] = comparison[0].model_copy(
-                    update={"fallback_reason": "least_exposed_route"}
-                )
+            fastest_label = (
+                "route.fastestAndShadiest" if maximum.id == fastest.id else "route.fastest"
+            )
+            comparison = [fastest.model_copy(update={"label_key": fastest_label})]
+            if balanced.id not in {fastest.id, maximum.id}:
+                comparison.append(balanced)
+            if maximum.id != fastest.id:
+                comparison.append(maximum)
             return comparison[:3]
         if request.preference == RoutePreference.FASTEST:
             return enriched
@@ -489,12 +474,10 @@ class RouteFeatureAnalyzer:
             for route in enriched
             if route.metrics.duration_s <= fastest.metrics.duration_s * (1 + cap / 100)
         ]
-        preferred = min(
-            candidates,
-            key=lambda route: (
-                route.metrics.sun_exposure_minutes or 0,
-                route.metrics.duration_s,
-            ),
+        preferred = (
+            self._best_balanced_shade_route(request, candidates, fastest, cap)
+            if request.preference == RoutePreference.BALANCED_SHADE
+            else self._best_maximum_shade_route(request, candidates, fastest, cap)
         )
         label = (
             "route.balancedShade"
@@ -511,25 +494,53 @@ class RouteFeatureAnalyzer:
         return ordered[:3]
 
     @staticmethod
-    def _best_shade_route(
+    def _shade_candidates(
         request: RoutePlanRequest,
         routes: list[RouteAlternative],
         fastest: RouteAlternative,
         default_cap: float,
-    ) -> RouteAlternative:
+    ) -> list[RouteAlternative]:
         cap = (
             request.constraints.maximum_time_detour_percent
             if request.constraints.maximum_time_detour_percent is not None
             else default_cap
         )
-        candidates = [
+        return [
             route
             for route in routes
             if route.metrics.duration_s <= fastest.metrics.duration_s * (1 + cap / 100)
         ]
+
+    @classmethod
+    def _best_balanced_shade_route(
+        cls,
+        request: RoutePlanRequest,
+        routes: list[RouteAlternative],
+        fastest: RouteAlternative,
+        default_cap: float,
+    ) -> RouteAlternative:
+        candidates = cls._shade_candidates(request, routes, fastest, default_cap)
         return min(
             candidates,
             key=lambda route: (
+                route.metrics.sun_exposure_minutes or 0,
+                route.metrics.duration_s,
+            ),
+        )
+
+    @classmethod
+    def _best_maximum_shade_route(
+        cls,
+        request: RoutePlanRequest,
+        routes: list[RouteAlternative],
+        fastest: RouteAlternative,
+        default_cap: float,
+    ) -> RouteAlternative:
+        candidates = cls._shade_candidates(request, routes, fastest, default_cap)
+        return min(
+            candidates,
+            key=lambda route: (
+                -(route.metrics.shade_fraction or 0),
                 route.metrics.sun_exposure_minutes or 0,
                 route.metrics.duration_s,
             ),
@@ -578,20 +589,36 @@ class RouteFeatureAnalyzer:
         candidates = []
         for route in enriched:
             signals = route.metrics.traffic_signals or 0
-            reduction = baseline_signals - signals
-            material = reduction >= 2 or (
-                baseline_signals > 0 and reduction / baseline_signals >= 0.2
-            )
-            if not material:
-                continue
             if route.metrics.duration_s > fastest.metrics.duration_s * (1 + time_cap / 100):
                 continue
             if route.metrics.distance_m > fastest.metrics.distance_m * (1 + distance_cap / 100):
                 continue
-            candidates.append((route.metrics.duration_s + signals * 25, route, reduction))
+            candidates.append((signals, route.metrics.duration_s + signals * 25, route))
         if not candidates:
-            return [fastest.model_copy(update={"fallback_reason": "no_material_signal_reduction"})]
-        _, preferred, reduction = min(candidates, key=lambda item: item[0])
+            return [fastest.model_copy(update={"label_key": "route.fastest"})]
+        _, _, preferred = min(candidates, key=lambda item: (item[0], item[1]))
+        reduction = baseline_signals - (preferred.metrics.traffic_signals or 0)
+        if preferred.id == fastest.id or reduction <= 0:
+            return [
+                fastest.model_copy(
+                    update={
+                        "label_key": "route.fastestAndFewestLights",
+                        "fallback_reason": None,
+                    }
+                )
+            ]
+        material_reduction = reduction >= 2 or (
+            baseline_signals > 0 and reduction / baseline_signals >= 0.2
+        )
+        if not material_reduction:
+            return [
+                fastest.model_copy(
+                    update={
+                        "label_key": "route.fastest",
+                        "fallback_reason": "no_material_signal_reduction",
+                    }
+                )
+            ]
         preferred = preferred.model_copy(
             update={
                 "label_key": "route.fewerLights",
@@ -649,11 +676,7 @@ def _shadow_polygons(geometry: BaseGeometry) -> list[ShadowPolygon]:
     elif isinstance(converted, MultiPolygon):
         polygons = list(converted.geoms)
     else:
-        polygons = [
-            item
-            for item in getattr(converted, "geoms", ())
-            if isinstance(item, Polygon)
-        ]
+        polygons = [item for item in getattr(converted, "geoms", ()) if isinstance(item, Polygon)]
     result: list[ShadowPolygon] = []
     for polygon in sorted(polygons, key=lambda item: item.area, reverse=True)[:400]:
         rings = [
@@ -814,9 +837,7 @@ def _bbox_contains(
     )
 
 
-def _feature_unavailable_reason(
-    feature: str, context: OsmRouteContext
-) -> tuple[str, str]:
+def _feature_unavailable_reason(feature: str, context: OsmRouteContext) -> tuple[str, str]:
     if context.incomplete_reason == OUTSIDE_VALIDATED_FEATURE_COVERAGE:
         if feature == "shade":
             return (
@@ -907,17 +928,6 @@ def _cluster_signals(signals: list[Point]) -> list[Point]:
         else:
             cluster.append(signal)
     return [unary_union(cluster).centroid for cluster in clusters]
-
-
-def _deduplicate_route_geometry(routes: list[RouteAlternative]) -> list[RouteAlternative]:
-    result: list[RouteAlternative] = []
-    seen: set[str] = set()
-    for route in routes:
-        if route.encoded_polyline in seen:
-            continue
-        result.append(route)
-        seen.add(route.encoded_polyline)
-    return result
 
 
 def _mapping(value: object) -> dict[str, Any]:

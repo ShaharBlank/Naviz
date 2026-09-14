@@ -77,9 +77,7 @@ async def test_sqlite_context_reads_only_route_corridor_features(tmp_path) -> No
     # Inside the route corridor's bounding box but over 260 m from the actual
     # diagonal geometry. A bounding-box-only query would incorrectly include it.
     connection.execute("INSERT INTO signals VALUES (3, 34.7818, 32.0707)")
-    connection.execute(
-        "INSERT INTO signal_index VALUES (3, 34.7818, 34.7818, 32.0707, 32.0707)"
-    )
+    connection.execute("INSERT INTO signal_index VALUES (3, 34.7818, 34.7818, 32.0707, 32.0707)")
     connection.commit()
     connection.close()
 
@@ -109,9 +107,7 @@ async def test_sqlite_context_reads_only_route_corridor_features(tmp_path) -> No
         at=datetime(2026, 8, 17, 12, 0, tzinfo=TZ),
         corridor_m=180,
     )
-    scene = await source.shadow_scene(
-        scene_request
-    )
+    scene = await source.shadow_scene(scene_request)
     assert scene.available
     assert scene.solar_elevation_degrees > 0
     assert scene.shadows
@@ -299,7 +295,7 @@ def test_signal_comparison_returns_total_counts_and_material_reduction() -> None
     assert routes[1].metrics.signals_avoided == 2
 
 
-def test_signal_comparison_honors_an_explicit_zero_detour_cap() -> None:
+def test_signal_comparison_marks_fastest_when_it_also_has_fewest_lights() -> None:
     departure = datetime(2026, 8, 17, 9, 0, tzinfo=TZ)
     fastest = _route("fast", 34.780, 600, 1_000, departure)
     low_signal = _route("low", 34.782, 601, 1_001, departure)
@@ -328,9 +324,75 @@ def test_signal_comparison_honors_an_explicit_zero_detour_cap() -> None:
     )
 
     assert len(routes) == 1
+    assert routes[0].label_key == "route.fastestAndFewestLights"
+    assert routes[0].fallback_reason is None
+    assert routes[0].metrics.traffic_signals == 3
+
+
+def test_signal_comparison_does_not_advertise_an_immaterial_reduction() -> None:
+    departure = datetime(2026, 8, 17, 9, 0, tzinfo=TZ)
+    fastest = _route("fast", 34.780, 600, 1_000, departure)
+    low_signal = _route("low", 34.782, 630, 1_050, departure)
+    signals = tuple(
+        Point(*TO_ITM.transform(longitude, 32.071 + index * 0.00085))
+        for longitude, count in ((34.780, 10), (34.782, 9))
+        for index in range(count)
+    )
+    request = RoutePlanRequest(
+        origin=Coordinate(latitude=32.070, longitude=34.780),
+        destination=Coordinate(latitude=32.080, longitude=34.780),
+        depart_at=departure,
+        mode=TravelMode.CAR,
+        preference=RoutePreference.FASTEST,
+    )
+
+    routes = RouteFeatureAnalyzer._signal_routes(
+        request,
+        [fastest, low_signal],
+        OsmRouteContext(traffic_signals=signals, complete=True),
+    )
+
+    assert len(routes) == 1
     assert routes[0].label_key == "route.fastest"
     assert routes[0].fallback_reason == "no_material_signal_reduction"
-    assert routes[0].metrics.traffic_signals == 3
+    assert routes[0].metrics.traffic_signals == 10
+
+
+def test_maximum_shade_optimizes_shaded_fraction_not_only_sun_minutes() -> None:
+    departure = datetime(2026, 8, 17, 9, 0, tzinfo=TZ)
+    fastest = _route("fast", 34.780, 600, 1_000, departure).model_copy(
+        update={
+            "metrics": RouteMetrics(
+                distance_m=1_000,
+                duration_s=600,
+                shade_fraction=0.20,
+                sun_exposure_minutes=8.0,
+            )
+        }
+    )
+    shadiest = _route("shade", 34.782, 770, 1_200, departure).model_copy(
+        update={
+            "metrics": RouteMetrics(
+                distance_m=1_200,
+                duration_s=770,
+                shade_fraction=0.65,
+                sun_exposure_minutes=9.5,
+            )
+        }
+    )
+    request = RoutePlanRequest(
+        origin=Coordinate(latitude=32.070, longitude=34.780),
+        destination=Coordinate(latitude=32.080, longitude=34.780),
+        depart_at=departure,
+        mode=TravelMode.WALK,
+    )
+
+    analyzer = RouteFeatureAnalyzer(cast(RouteContextPort, None))
+    balanced = analyzer._best_balanced_shade_route(request, [fastest, shadiest], fastest, 15.0)
+    maximum = analyzer._best_maximum_shade_route(request, [fastest, shadiest], fastest, 30.0)
+
+    assert balanced.id == fastest.id
+    assert maximum.id == shadiest.id
 
 
 def _route(

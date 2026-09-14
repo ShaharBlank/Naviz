@@ -11,7 +11,8 @@ import {
   View,
 } from "react-native";
 
-import type { Place, TravelMode } from "../api/types";
+import { distanceMeters } from "../api/polyline";
+import type { Coordinate, Place, TravelMode } from "../api/types";
 import { colors, radius, shadow, spacing } from "../theme/tokens";
 
 export type LocationStatus =
@@ -39,6 +40,7 @@ interface Props {
   locale: "he" | "en";
   onLocaleToggle: () => void;
   mobilityCount?: number | null;
+  proximity?: Coordinate | null | undefined;
 }
 
 const PRIMARY_MODES: TravelMode[] = ["walk", "car", "transit", "bike"];
@@ -62,6 +64,26 @@ const MODE_ICONS: Record<TravelMode, string> = {
   scooter_transit: "🛴+",
   rental_transit: "⇄",
 };
+const SEARCH_CATEGORIES = new Set([
+  "address",
+  "restaurant",
+  "cafe",
+  "nightlife",
+  "transit",
+  "government",
+  "shopping",
+  "hotel",
+  "culture",
+  "health",
+  "education",
+  "park",
+  "outdoors",
+  "parking",
+  "fuel",
+  "city",
+  "district",
+  "locality",
+]);
 
 export function SearchPanel(props: Props) {
   const { t } = useTranslation();
@@ -97,7 +119,9 @@ export function SearchPanel(props: Props) {
     <View style={[styles.panel, searchFocused && styles.panelWhileTyping]}>
       <View style={styles.handle} />
       <View style={[styles.brandRow, rtl && styles.rowReverse]}>
-        <Text style={[styles.brand, rtl && styles.rtlText]}>{t("appName")}</Text>
+        <Text style={[styles.brand, rtl && styles.rtlText]}>
+          {t("appName")}
+        </Text>
         <Pressable
           accessibilityRole="button"
           style={styles.languageButton}
@@ -156,8 +180,9 @@ export function SearchPanel(props: Props) {
         (!props.selectedDestination || editingDestination) &&
         props.results.length > 0 ? (
           <PlaceRows
-            places={props.results.slice(0, 6)}
+            places={props.results.slice(0, 12)}
             rtl={rtl}
+            proximity={props.proximity}
             onSelect={props.onSelect}
           />
         ) : null}
@@ -175,6 +200,7 @@ export function SearchPanel(props: Props) {
             title={t("favorites")}
             places={props.favorites}
             rtl={rtl}
+            proximity={props.proximity}
             onSelect={props.onSelect}
           />
         ) : null}
@@ -185,6 +211,7 @@ export function SearchPanel(props: Props) {
             title={t("recent")}
             places={props.recent}
             rtl={rtl}
+            proximity={props.proximity}
             onSelect={props.onSelect}
           />
         ) : null}
@@ -342,17 +369,24 @@ function PlaceSection({
   title,
   places,
   rtl,
+  proximity,
   onSelect,
 }: {
   title: string;
   places: Place[];
   rtl: boolean;
+  proximity?: Coordinate | null | undefined;
   onSelect: (place: Place) => void;
 }) {
   return (
     <View>
       <Text style={[styles.sectionTitle, rtl && styles.rtlText]}>{title}</Text>
-      <PlaceRows places={places.slice(0, 3)} rtl={rtl} onSelect={onSelect} />
+      <PlaceRows
+        places={places.slice(0, 3)}
+        rtl={rtl}
+        proximity={proximity}
+        onSelect={onSelect}
+      />
     </View>
   );
 }
@@ -360,12 +394,15 @@ function PlaceSection({
 function PlaceRows({
   places,
   rtl,
+  proximity,
   onSelect,
 }: {
   places: Place[];
   rtl: boolean;
+  proximity?: Coordinate | null | undefined;
   onSelect: (place: Place) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <View style={styles.results}>
       {places.map((place) => (
@@ -379,16 +416,31 @@ function PlaceRows({
           }}
         >
           <View style={styles.resultIcon}>
-            <Text>⌖</Text>
+            <Text style={styles.resultIconText}>
+              {placeIcon(place.category)}
+            </Text>
           </View>
           <View style={styles.resultText}>
             <Text style={[styles.resultName, rtl && styles.rtlText]}>
               {rtl ? (place.name_he ?? place.name) : place.name}
             </Text>
+            <View style={[styles.resultMeta, rtl && styles.rowReverse]}>
+              <Text style={[styles.resultCategory, rtl && styles.rtlText]}>
+                {t(`searchCategory.${normalizedCategory(place.category)}`)}
+              </Text>
+              {proximity ? (
+                <Text style={styles.resultDistance}>
+                  {formatPlaceDistance(
+                    distanceMeters(proximity, place.coordinate),
+                    t,
+                  )}
+                </Text>
+              ) : null}
+            </View>
             {place.subtitle ? (
               <Text
                 style={[styles.resultSubtitle, rtl && styles.rtlText]}
-                numberOfLines={1}
+                numberOfLines={2}
               >
                 {place.subtitle}
               </Text>
@@ -398,6 +450,41 @@ function PlaceRows({
       ))}
     </View>
   );
+}
+
+function normalizedCategory(category: string): string {
+  const value = category.toLowerCase();
+  if (value === "house" || value === "street") return "address";
+  return SEARCH_CATEGORIES.has(value) ? value : "place";
+}
+
+function placeIcon(category: string): string {
+  const value = normalizedCategory(category);
+  if (value === "restaurant") return "♨";
+  if (value === "cafe") return "☕";
+  if (value === "transit") return "↔";
+  if (value === "government") return "▦";
+  if (value === "shopping") return "◇";
+  if (value === "health") return "✚";
+  if (value === "education" || value === "culture") return "▤";
+  if (value === "park" || value === "outdoors") return "♧";
+  if (value === "parking") return "P";
+  if (value === "fuel") return "⛽";
+  if (value === "hotel") return "⌂";
+  return "⌖";
+}
+
+type Translate = ReturnType<typeof useTranslation>["t"];
+
+function formatPlaceDistance(distance: number, t: Translate): string {
+  if (distance < 1_000) {
+    return t("metrics.meters", {
+      value: Math.max(10, Math.round(distance / 10) * 10),
+    });
+  }
+  return t("metrics.kilometers", {
+    value: Math.round((distance / 1_000) * 10) / 10,
+  });
 }
 
 function ModeButton({
@@ -537,9 +624,27 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginHorizontal: spacing.sm,
   },
+  resultIconText: {
+    color: colors.primaryDark,
+    fontSize: 17,
+    fontWeight: "900",
+  },
   resultText: { flex: 1, minWidth: 0 },
-  resultName: { color: colors.ink, fontSize: 15, fontWeight: "800" },
-  resultSubtitle: { color: colors.muted, fontSize: 12, marginTop: 2 },
+  resultName: { color: colors.ink, fontSize: 15, fontWeight: "900" },
+  resultMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginTop: 2,
+  },
+  resultCategory: { color: colors.primary, fontSize: 11, fontWeight: "800" },
+  resultDistance: { color: colors.muted, fontSize: 11, fontWeight: "700" },
+  resultSubtitle: {
+    color: colors.muted,
+    fontSize: 12,
+    lineHeight: 16,
+    marginTop: 2,
+  },
   emptyText: {
     color: colors.muted,
     fontSize: 13,

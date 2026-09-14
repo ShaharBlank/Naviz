@@ -7,6 +7,7 @@ import {
   buildRouteLegFeatureCollection,
   buildRouteMarkerFeatureCollection,
   buildShadowFeatureCollection,
+  navigationBearing,
   navigationCameraProfile,
   navigationCameraTarget,
   navigationMarkerCoordinate,
@@ -45,8 +46,7 @@ describe("NavizMap 3D shade helpers", () => {
     const collection = buildShadowFeatureCollection(scene, false);
     expect(collection.features).toHaveLength(1);
     expect(collection.features[0]?.geometry.coordinates[0]?.[0]).toEqual([
-      34.78,
-      32.07,
+      34.78, 32.07,
     ]);
   });
 
@@ -93,10 +93,9 @@ describe("NavizMap 3D shade helpers", () => {
     );
 
     const markers = buildRouteMarkerFeatureCollection(route);
-    expect(markers.features.map((feature) => feature.properties?.kind)).toEqual([
-      "handoff",
-      "destination",
-    ]);
+    expect(markers.features.map((feature) => feature.properties?.kind)).toEqual(
+      ["handoff", "destination"],
+    );
   });
 
   it("uses mode-aware look-ahead cameras while preserving route progress", () => {
@@ -139,6 +138,12 @@ describe("NavizMap 3D shade helpers", () => {
     expect(navigationMarkerRotation(10, 350)).toBe(20);
     expect(navigationMarkerRotation(350, 10)).toBe(-20);
     expect(navigationMarkerRotation(95, 95)).toBe(0);
+  });
+
+  it("ignores a stale stationary GPS heading during active navigation", () => {
+    expect(navigationBearing(88, 0, true)).toBe(88);
+    expect(navigationBearing(88, 72, true)).toBe(88);
+    expect(navigationBearing(88, 0, false)).toBe(0);
   });
 
   it("places the avatar on the route without hiding genuine off-route drift", () => {
@@ -194,7 +199,6 @@ describe("NavizMap 3D shade helpers", () => {
       userCoordinate: { latitude: 32.07, longitude: 34.78 },
       userHeadingDegrees: 30,
       shadowScene: null,
-      shadowLoading: false,
       mobilityVehicles: [],
       following: true,
       navigationActive: true,
@@ -202,8 +206,6 @@ describe("NavizMap 3D shade helpers", () => {
       onRecenter: jest.fn(),
       onOverview: jest.fn(),
       onDisplayModeChange: jest.fn(),
-      onShadowTimeShift: jest.fn(),
-      onShadowTimeReset: jest.fn(),
       onMobilityVehiclePress: jest.fn(),
     };
     const screen = render(<NavizMap {...shared} displayMode="2d" />);
@@ -216,7 +218,7 @@ describe("NavizMap 3D shade helpers", () => {
     ).not.toThrow();
   });
 
-  it("does not show useless shadow-time controls when no scene is available", () => {
+  it("keeps technical shadow explanations off the map even when shadows are available", () => {
     const route = {
       id: "walk",
       label_key: "route.fastest",
@@ -255,8 +257,7 @@ describe("NavizMap 3D shade helpers", () => {
         userCoordinate={{ latitude: 32.07, longitude: 34.78 }}
         userHeadingDegrees={null}
         displayMode="3d"
-        shadowScene={null}
-        shadowLoading={false}
+        shadowScene={scene}
         mobilityVehicles={[]}
         following={false}
         navigationActive={false}
@@ -264,13 +265,12 @@ describe("NavizMap 3D shade helpers", () => {
         onRecenter={jest.fn()}
         onOverview={jest.fn()}
         onDisplayModeChange={jest.fn()}
-        onShadowTimeShift={jest.fn()}
-        onShadowTimeReset={jest.fn()}
         onMobilityVehiclePress={jest.fn()}
       />,
     );
 
     expect(screen.queryByText("Route time")).toBeNull();
-    expect(screen.queryByText("Shadow view is unavailable for this corridor")).toBeNull();
+    expect(screen.queryByText(/Building shadows at/)).toBeNull();
+    expect(screen.queryByText(/darker = verified height/)).toBeNull();
   });
 });
