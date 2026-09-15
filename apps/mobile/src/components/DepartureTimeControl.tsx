@@ -20,6 +20,8 @@ import {
 } from "../features/planning/departureTime";
 import { colors, radius, shadow, spacing } from "../theme/tokens";
 
+const TRIP_TIME_ZONE = "Asia/Jerusalem";
+
 interface Props {
   value: Date | null;
   mode: RouteTimeMode;
@@ -109,6 +111,7 @@ export function DepartureTimeControl({ value, mode, locale, onChange }: Props) {
                 display="inline"
                 minimumDate={new Date()}
                 locale={locale === "he" ? "he-IL" : "en-IL"}
+                timeZoneName={TRIP_TIME_ZONE}
                 onChange={(_event, selected) => {
                   if (selected) setDraft(selected);
                 }}
@@ -168,12 +171,14 @@ function openAndroidDateTime(initial: Date, commit: (value: Date) => void) {
     value: initial,
     mode: "date",
     minimumDate: new Date(),
+    timeZoneName: TRIP_TIME_ZONE,
     onChange: (dateEvent: DateTimePickerEvent, selectedDate?: Date) => {
       if (dateEvent.type !== "set" || !selectedDate) return;
       DateTimePickerAndroid.open({
         value: initial,
         mode: "time",
         is24Hour: true,
+        timeZoneName: TRIP_TIME_ZONE,
         onChange: (timeEvent: DateTimePickerEvent, selectedTime?: Date) => {
           if (timeEvent.type !== "set" || !selectedTime) return;
           const combined = new Date(selectedDate);
