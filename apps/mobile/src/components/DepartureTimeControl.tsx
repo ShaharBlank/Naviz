@@ -13,31 +13,35 @@ import {
   View,
 } from "react-native";
 
-import { formatDepartureTime, sanitizeFutureDeparture } from "../features/planning/departureTime";
+import {
+  formatDepartureTime,
+  sanitizeFutureDeparture,
+  type RouteTimeMode,
+} from "../features/planning/departureTime";
 import { colors, radius, shadow, spacing } from "../theme/tokens";
 
 interface Props {
   value: Date | null;
+  mode: RouteTimeMode;
   locale: "he" | "en";
-  onChange: (value: Date | null) => void;
+  onChange: (mode: RouteTimeMode, value: Date | null) => void;
 }
 
-export function DepartureTimeControl({ value, locale, onChange }: Props) {
+export function DepartureTimeControl({ value, mode, locale, onChange }: Props) {
   const { t } = useTranslation();
-  const [iosVisible, setIosVisible] = useState(false);
+  const [visible, setVisible] = useState(false);
+  const [draftMode, setDraftMode] = useState<RouteTimeMode>(mode);
   const [draft, setDraft] = useState(() => initialPickerValue(value));
   const rtl = locale === "he";
   const label = value ? formatDepartureTime(value, locale) : t("departure.now");
+  const modeLabel = t(
+    mode === "arrive_by" ? "departure.arriveLabel" : "departure.label",
+  );
 
-  const commit = (selected: Date) => onChange(sanitizeFutureDeparture(selected));
   const open = () => {
-    const initial = initialPickerValue(value);
-    setDraft(initial);
-    if (Platform.OS === "android") {
-      openAndroidDateTime(initial, commit);
-      return;
-    }
-    setIosVisible(true);
+    setDraft(initialPickerValue(value));
+    setDraftMode(mode);
+    setVisible(true);
   };
 
   return (
@@ -52,7 +56,7 @@ export function DepartureTimeControl({ value, locale, onChange }: Props) {
         <Text style={styles.icon}>◷</Text>
         <View style={styles.labelGroup}>
           <Text style={[styles.eyebrow, rtl && styles.rtlText]}>
-            {t("departure.label")}
+            {modeLabel}
           </Text>
           <Text style={[styles.label, rtl && styles.rtlText]} numberOfLines={1}>
             {label}
@@ -60,18 +64,45 @@ export function DepartureTimeControl({ value, locale, onChange }: Props) {
         </View>
       </Pressable>
 
-      {Platform.OS === "ios" ? (
-        <Modal
-          visible={iosVisible}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setIosVisible(false)}
-        >
-          <Pressable style={styles.backdrop} onPress={() => setIosVisible(false)}>
-            <Pressable style={styles.sheet} onPress={() => undefined}>
-              <Text style={[styles.title, rtl && styles.rtlText]}>
-                {t("departure.choose")}
-              </Text>
+      <Modal
+        visible={visible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setVisible(false)}
+      >
+        <Pressable style={styles.backdrop} onPress={() => setVisible(false)}>
+          <Pressable style={styles.sheet} onPress={() => undefined}>
+            <Text style={[styles.title, rtl && styles.rtlText]}>
+              {t("departure.choose")}
+            </Text>
+            <View style={[styles.segmented, rtl && styles.rowReverse]}>
+              {(["depart_at", "arrive_by"] as const).map((candidate) => (
+                <Pressable
+                  key={candidate}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: draftMode === candidate }}
+                  onPress={() => setDraftMode(candidate)}
+                  style={[
+                    styles.segment,
+                    draftMode === candidate && styles.segmentSelected,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.segmentText,
+                      draftMode === candidate && styles.segmentTextSelected,
+                    ]}
+                  >
+                    {t(
+                      candidate === "depart_at"
+                        ? "departure.leaveAt"
+                        : "departure.arriveBy",
+                    )}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {Platform.OS === "ios" ? (
               <DateTimePicker
                 value={draft}
                 mode="datetime"
@@ -82,32 +113,47 @@ export function DepartureTimeControl({ value, locale, onChange }: Props) {
                   if (selected) setDraft(selected);
                 }}
               />
-              <View style={[styles.actions, rtl && styles.rowReverse]}>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => {
-                    onChange(null);
-                    setIosVisible(false);
-                  }}
-                  style={styles.secondaryButton}
-                >
-                  <Text style={styles.secondaryText}>{t("departure.now")}</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => {
-                    commit(draft);
-                    setIosVisible(false);
-                  }}
-                  style={styles.primaryButton}
-                >
-                  <Text style={styles.primaryText}>{t("departure.done")}</Text>
-                </Pressable>
-              </View>
-            </Pressable>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={t("departure.pick")}
+                onPress={() => openAndroidDateTime(draft, setDraft)}
+                style={styles.pickerButton}
+              >
+                <Text style={styles.pickerIcon}>◷</Text>
+                <Text style={styles.pickerText}>
+                  {formatDepartureTime(draft, locale)}
+                </Text>
+                <Text style={styles.pickerChange}>{t("change")}</Text>
+              </Pressable>
+            )}
+            <View style={[styles.actions, rtl && styles.rowReverse]}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  onChange("depart_at", null);
+                  setVisible(false);
+                }}
+                style={styles.secondaryButton}
+              >
+                <Text style={styles.secondaryText}>{t("departure.now")}</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  const selected = sanitizeFutureDeparture(draft);
+                  if (selected) onChange(draftMode, selected);
+                  else onChange("depart_at", null);
+                  setVisible(false);
+                }}
+                style={styles.primaryButton}
+              >
+                <Text style={styles.primaryText}>{t("departure.done")}</Text>
+              </Pressable>
+            </View>
           </Pressable>
-        </Modal>
-      ) : null}
+        </Pressable>
+      </Modal>
     </>
   );
 }
@@ -131,7 +177,12 @@ function openAndroidDateTime(initial: Date, commit: (value: Date) => void) {
         onChange: (timeEvent: DateTimePickerEvent, selectedTime?: Date) => {
           if (timeEvent.type !== "set" || !selectedTime) return;
           const combined = new Date(selectedDate);
-          combined.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+          combined.setHours(
+            selectedTime.getHours(),
+            selectedTime.getMinutes(),
+            0,
+            0,
+          );
           commit(combined);
         },
       });
@@ -171,8 +222,49 @@ const styles = StyleSheet.create({
     ...shadow,
   },
   title: { color: colors.ink, fontSize: 18, fontWeight: "900" },
-  actions: { flexDirection: "row", justifyContent: "flex-end", gap: spacing.sm },
-  secondaryButton: { minHeight: 48, paddingHorizontal: spacing.lg, justifyContent: "center" },
+  segmented: {
+    flexDirection: "row",
+    gap: 4,
+    padding: 4,
+    marginTop: spacing.md,
+    marginBottom: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceElevated,
+  },
+  segment: {
+    flex: 1,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.sm,
+  },
+  segmentSelected: { backgroundColor: colors.surface, ...shadow },
+  segmentText: { color: colors.muted, fontSize: 14, fontWeight: "800" },
+  segmentTextSelected: { color: colors.primaryDark },
+  pickerButton: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginVertical: spacing.md,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  pickerIcon: { color: colors.primary, fontSize: 22, fontWeight: "900" },
+  pickerText: { flex: 1, color: colors.ink, fontSize: 16, fontWeight: "900" },
+  pickerChange: { color: colors.primary, fontSize: 13, fontWeight: "900" },
+  actions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: spacing.sm,
+  },
+  secondaryButton: {
+    minHeight: 48,
+    paddingHorizontal: spacing.lg,
+    justifyContent: "center",
+  },
   secondaryText: { color: colors.primary, fontWeight: "900" },
   primaryButton: {
     minHeight: 48,

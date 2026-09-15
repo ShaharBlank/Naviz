@@ -25,6 +25,7 @@ const defaults = {
   selectedDestination: null,
   selectedOrigin: null,
   departureAt: null,
+  routeTimeMode: "depart_at" as const,
   onSelect: jest.fn(),
   onSearchTargetChange: jest.fn(),
   onDepartureChange: jest.fn(),
@@ -59,6 +60,20 @@ describe("SearchPanel localization and controls", () => {
     expect(screen.getByLabelText("Where from?")).toBeTruthy();
     fireEvent.press(screen.getByLabelText("Start from my location"));
     expect(defaults.onUseCurrentLocation).toHaveBeenCalled();
+  });
+
+  it("shows whether the selected future time is a departure or arrival", async () => {
+    await i18n.changeLanguage("en");
+    const screen = render(
+      <SearchPanel
+        {...defaults}
+        locale="en"
+        departureAt={new Date("2030-09-15T11:15:00+03:00")}
+        routeTimeMode="arrive_by"
+      />,
+    );
+    expect(screen.getByText("Arrive")).toBeTruthy();
+    expect(screen.getByLabelText("Change trip time")).toBeTruthy();
   });
 
   it("shows correct Hebrew RTL destination controls", async () => {

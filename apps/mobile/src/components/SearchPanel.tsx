@@ -13,6 +13,7 @@ import {
 
 import { distanceMeters } from "../api/polyline";
 import type { Coordinate, Place, TravelMode } from "../api/types";
+import type { RouteTimeMode } from "../features/planning/departureTime";
 import { colors, radius, shadow, spacing } from "../theme/tokens";
 import { DepartureTimeControl } from "./DepartureTimeControl";
 
@@ -31,8 +32,9 @@ interface Props {
   selectedOrigin: Place | null;
   selectedDestination: Place | null;
   departureAt: Date | null;
+  routeTimeMode: RouteTimeMode;
   onSearchTargetChange: (target: SearchTarget) => void;
-  onDepartureChange: (value: Date | null) => void;
+  onDepartureChange: (mode: RouteTimeMode, value: Date | null) => void;
   onSelect: (place: Place) => void;
   onToggleFavorite: (place: Place) => void;
   mode: TravelMode;
@@ -182,6 +184,7 @@ export function SearchPanel(props: Props) {
         </Pressable>
         <DepartureTimeControl
           value={props.departureAt}
+          mode={props.routeTimeMode}
           locale={props.locale}
           onChange={props.onDepartureChange}
         />

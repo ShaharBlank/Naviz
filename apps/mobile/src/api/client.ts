@@ -115,7 +115,11 @@ export function planRoute(
 }
 
 export function reroute(
-  payload: Omit<RoutePlanRequest, "origin" | "include_comparisons"> & {
+  payload: Omit<
+    RoutePlanRequest,
+    "origin" | "include_comparisons" | "depart_at" | "arrive_by"
+  > & {
+    depart_at: string;
     current_position: Coordinate;
     original_route_id: string;
     heading_degrees?: number;

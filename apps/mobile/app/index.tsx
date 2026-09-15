@@ -49,8 +49,9 @@ import {
   loadCachedRoute,
 } from "../src/features/navigation/routeCache";
 import {
-  departureForRequest,
+  routeTimeForRequest,
   shadowDisplayTime,
+  type RouteTimeMode,
 } from "../src/features/planning/departureTime";
 
 const ISRAEL_SERVICE_BBOX = {
@@ -66,10 +67,11 @@ export default function HomeScreen() {
   const [state, send] = useMachine(navigationMachine);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [searchTarget, setSearchTarget] =
-    useState<SearchTarget>("destination");
+  const [searchTarget, setSearchTarget] = useState<SearchTarget>("destination");
   const [selectedOrigin, setSelectedOrigin] = useState<Place | null>(null);
   const [departureAt, setDepartureAt] = useState<Date | null>(null);
+  const [routeTimeMode, setRouteTimeMode] =
+    useState<RouteTimeMode>("depart_at");
   const [origin, setOrigin] = useState<Coordinate | null>(null);
   const [userCoordinate, setUserCoordinate] = useState<Coordinate | null>(null);
   const [userHeadingDegrees, setUserHeadingDegrees] = useState<number | null>(
@@ -259,7 +261,7 @@ export default function HomeScreen() {
     (currentOrigin: Coordinate): RoutePlanRequest => ({
       origin: currentOrigin,
       destination: state.context.destination!.coordinate,
-      depart_at: departureForRequest(departureAt).toISOString(),
+      ...routeTimeForRequest(routeTimeMode, departureAt),
       locale,
       mode,
       preference: "fastest",
@@ -280,7 +282,14 @@ export default function HomeScreen() {
         allow_low_confidence_crossings: false,
       },
     }),
-    [departureAt, locale, mode, state.context.destination, vehicleKind],
+    [
+      departureAt,
+      locale,
+      mode,
+      routeTimeMode,
+      state.context.destination,
+      vehicleKind,
+    ],
   );
 
   const routeMutation = useMutation({
@@ -331,17 +340,17 @@ export default function HomeScreen() {
     }) => {
       if (!selectedRoute || !state.context.destination)
         throw new Error("No active route");
-      const request = {
-        ...buildRequest(coordinate),
-        depart_at: new Date().toISOString(),
-      };
+      const request = buildRequest(coordinate);
       const {
         origin: _origin,
         include_comparisons: _includeComparisons,
+        depart_at: _departAt,
+        arrive_by: _arriveBy,
         ...remaining
       } = request;
       return reroute({
         ...remaining,
+        depart_at: new Date().toISOString(),
         current_position: coordinate,
         original_route_id: selectedRoute.id,
         ...(location.coords.heading !== null
@@ -630,18 +639,12 @@ export default function HomeScreen() {
   };
 
   const labelForPlace = (place: Place | null) =>
-    place
-      ? rtl
-        ? (place.name_he ?? place.name)
-        : place.name
-      : "";
+    place ? (rtl ? (place.name_he ?? place.name) : place.name) : "";
 
   const changeSearchTarget = (target: SearchTarget) => {
     setSearchTarget(target);
     setQuery(
-      target === "origin"
-        ? ""
-        : labelForPlace(state.context.destination),
+      target === "origin" ? "" : labelForPlace(state.context.destination),
     );
   };
 
@@ -699,8 +702,12 @@ export default function HomeScreen() {
             selectedOrigin={selectedOrigin}
             selectedDestination={state.context.destination}
             departureAt={departureAt}
+            routeTimeMode={routeTimeMode}
             onSearchTargetChange={changeSearchTarget}
-            onDepartureChange={setDepartureAt}
+            onDepartureChange={(timeMode, value) => {
+              setRouteTimeMode(timeMode);
+              setDepartureAt(value);
+            }}
             onSelect={selectSearchPlace}
             mode={mode}
             onModeChange={setMode}

@@ -1,6 +1,7 @@
 import {
   departureForRequest,
   formatDepartureTime,
+  routeTimeForRequest,
   sanitizeFutureDeparture,
   shadowDisplayTime,
 } from "../src/features/planning/departureTime";
@@ -12,6 +13,19 @@ describe("departure and shade clocks", () => {
     expect(departureForRequest(null, now)).toEqual(now);
     const future = new Date("2026-09-15T11:15:00+03:00");
     expect(departureForRequest(future, now)).toEqual(future);
+  });
+
+  it("sends exactly one planned-time mode", () => {
+    const future = new Date("2026-09-15T11:15:00+03:00");
+    expect(routeTimeForRequest("depart_at", future, now)).toEqual({
+      depart_at: future.toISOString(),
+    });
+    expect(routeTimeForRequest("arrive_by", future, now)).toEqual({
+      arrive_by: future.toISOString(),
+    });
+    expect(routeTimeForRequest("depart_at", null, now)).toEqual({
+      depart_at: now.toISOString(),
+    });
   });
 
   it("treats past and accidental near-now choices as now", () => {
@@ -35,11 +49,7 @@ describe("departure and shade clocks", () => {
 
   it("formats a concise localized time", () => {
     expect(
-      formatDepartureTime(
-        new Date("2026-09-15T11:15:00+03:00"),
-        "en",
-        now,
-      ),
+      formatDepartureTime(new Date("2026-09-15T11:15:00+03:00"), "en", now),
     ).toMatch(/11:15/);
   });
 });

@@ -1,8 +1,19 @@
+export type RouteTimeMode = "depart_at" | "arrive_by";
+
 export function departureForRequest(
   selected: Date | null,
   now: Date = new Date(),
 ): Date {
   return selected && selected.getTime() > now.getTime() ? selected : now;
+}
+
+export function routeTimeForRequest(
+  mode: RouteTimeMode,
+  selected: Date | null,
+  now: Date = new Date(),
+): { depart_at: string } | { arrive_by: string } {
+  const isoTime = departureForRequest(selected, now).toISOString();
+  return mode === "arrive_by" ? { arrive_by: isoTime } : { depart_at: isoTime };
 }
 
 export function sanitizeFutureDeparture(
@@ -32,7 +43,11 @@ export function formatDepartureTime(
     timeZone: "Asia/Jerusalem",
     ...(sameDay
       ? {}
-      : { weekday: "short" as const, day: "numeric" as const, month: "short" as const }),
+      : {
+          weekday: "short" as const,
+          day: "numeric" as const,
+          month: "short" as const,
+        }),
     hour: "2-digit",
     minute: "2-digit",
   }).format(selected);

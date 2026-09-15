@@ -27,12 +27,19 @@ export type MobilityVehicle = Schemas["MobilityVehicle"];
 export type MobilityResponse = Schemas["MobilityResponse"];
 
 type GeneratedRoutePlanRequest = Schemas["RoutePlanRequest"];
-export type RoutePlanRequest = GeneratedRoutePlanRequest & {
-  depart_at: string;
-  locale: Locale;
-  mode: TravelMode;
-  preference: RoutePreference;
-};
+type RouteTimeRequest =
+  | { depart_at: string; arrive_by?: never }
+  | { arrive_by: string; depart_at?: never };
+
+export type RoutePlanRequest = Omit<
+  GeneratedRoutePlanRequest,
+  "depart_at" | "arrive_by"
+> &
+  RouteTimeRequest & {
+    locale: Locale;
+    mode: TravelMode;
+    preference: RoutePreference;
+  };
 
 // RFC 9457 responses are returned by middleware/exception handlers and are not
 // tied to a successful operation response in OpenAPI.
