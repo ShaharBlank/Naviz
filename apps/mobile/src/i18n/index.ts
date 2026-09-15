@@ -192,6 +192,7 @@ const resources = {
             "שירות חישוב המסלול אינו זמין כרגע. נסו שוב בעוד רגע.",
           no_route: "לא נמצא מסלול מתאים למצב ולהעדפות שנבחרו.",
           network_error: "אין חיבור לשרת. בדקו את החיבור ונסו שוב.",
+          request_timeout: "חישוב המסלול ארך זמן רב מדי. נסו שוב.",
           validation_error: "פרטי המסלול אינם תקינים.",
         },
       },
@@ -391,6 +392,7 @@ const resources = {
           no_route: "No route was found for the selected mode and preferences.",
           network_error:
             "The server cannot be reached. Check your connection and try again.",
+          request_timeout: "Route calculation took too long. Try again.",
           validation_error: "The route details are invalid.",
         },
       },

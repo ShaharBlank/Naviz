@@ -182,4 +182,22 @@ describe("SearchPanel localization and controls", () => {
     expect(screen.getByText(restaurant.subtitle!)).toBeTruthy();
     expect(screen.queryByText("Medium confidence")).toBeNull();
   });
+
+  it("keeps route errors inside the planning sheet instead of covering the map", async () => {
+    await i18n.changeLanguage("en");
+    const screen = render(
+      <SearchPanel
+        {...defaults}
+        locale="en"
+        query="Rabin Square"
+        selectedDestination={rabin}
+        planError="Route calculation took too long. Try again."
+      />,
+    );
+
+    expect(screen.getByRole("alert").props.children).toBe(
+      "Route calculation took too long. Try again.",
+    );
+    expect(screen.getByText("Try again")).toBeTruthy();
+  });
 });

@@ -45,6 +45,7 @@ interface Props {
   locationStatus: LocationStatus;
   searching: boolean;
   searchError: boolean;
+  planError?: string | null;
   planning: boolean;
   locale: "he" | "en";
   onLocaleToggle: () => void;
@@ -423,6 +424,14 @@ export function SearchPanel(props: Props) {
                   : t("mobility.available", { count: props.mobilityCount })}
               </Text>
             ) : null}
+            {props.planError ? (
+              <Text
+                accessibilityRole="alert"
+                style={[styles.planError, rtl && styles.rtlText]}
+              >
+                {props.planError}
+              </Text>
+            ) : null}
             <Pressable
               accessibilityRole="button"
               style={({ pressed }) => [
@@ -435,7 +444,11 @@ export function SearchPanel(props: Props) {
                 <ActivityIndicator color={colors.surface} />
               ) : null}
               <Text style={styles.planButtonText}>
-                {props.planning ? t("cancel") : t("routeComparison")}
+                {props.planning
+                  ? t("cancel")
+                  : props.planError
+                    ? t("retry")
+                    : t("routeComparison")}
               </Text>
             </Pressable>
           </View>
@@ -880,6 +893,13 @@ const styles = StyleSheet.create({
     color: colors.muted,
     fontSize: 13,
     lineHeight: 18,
+    paddingBottom: spacing.sm,
+  },
+  planError: {
+    color: colors.danger,
+    fontSize: 13,
+    lineHeight: 18,
+    paddingHorizontal: spacing.xs,
     paddingBottom: spacing.sm,
   },
   planButton: {

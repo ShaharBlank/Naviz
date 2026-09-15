@@ -13,10 +13,11 @@ from time import monotonic
 from typing import Any, Protocol, cast
 
 import httpx
+import numpy as np
 from astral import Observer
 from astral.sun import azimuth, elevation
 from pyproj import Transformer
-from shapely import affinity
+from shapely import affinity, intersects, intersects_xy, linestrings, prepare
 from shapely.geometry import LineString, MultiPolygon, Point, Polygon
 from shapely.geometry.base import BaseGeometry
 from shapely.ops import transform as transform_geometry
@@ -41,6 +42,8 @@ _ITM_TO_WGS84 = Transformer.from_crs("EPSG:2039", "EPSG:4326", always_xy=True)
 _ROAD_MODES = {TravelMode.CAR, TravelMode.MOTORCYCLE, TravelMode.TRUCK}
 _ROUTE_CONTEXT_CORRIDOR_M = 260.0
 _MAX_SHADOW_SCENE_ROUTE_M = 6_000.0
+_BALANCED_SHADE_DETOUR_PERCENT = 15.0
+_MAXIMUM_SHADE_DETOUR_PERCENT = 50.0
 OUTSIDE_VALIDATED_FEATURE_COVERAGE = "outside_validated_feature_coverage"
 
 
@@ -49,6 +52,13 @@ class Building:
     footprint: Polygon | MultiPolygon
     height_m: float
     confidence: DataConfidence
+
+
+@dataclass(frozen=True, slots=True)
+class _BuildingHeightGroup:
+    height_m: float
+    footprints: BaseGeometry
+    high_confidence_footprints: BaseGeometry
 
 
 @dataclass(frozen=True, slots=True)
@@ -421,8 +431,47 @@ class RouteFeatureAnalyzer:
             traffic_signals=needs_signals,
         )
         if needs_shade:
-            return self._shade_routes(request, routes, context)
-        return self._signal_routes(request, routes, context)
+            # Polygon projection and point sampling are CPU-bound. Keeping
+            # them off the event loop lets health, search and cancellation
+            # requests stay responsive on the single-worker hosted profile.
+            return await asyncio.to_thread(self._shade_routes, request, routes, context)
+        return await asyncio.to_thread(self._signal_routes, request, routes, context)
+
+    async def signal_probe_coordinates(
+        self,
+        request: RoutePlanRequest,
+        routes: list[RouteAlternative],
+    ) -> tuple[Coordinate, ...]:
+        """Return signals on the fastest route only when normal alternatives do not improve it."""
+        context = await self._context.context(
+            routes,
+            buildings=False,
+            traffic_signals=True,
+        )
+        if not context.complete or not context.traffic_signals:
+            return ()
+        enriched = [_annotate_signals(route, context.traffic_signals) for route in routes]
+        if len(self._signal_routes(request, enriched, context)) > 1:
+            return ()
+        fastest = min(enriched, key=lambda route: route.metrics.duration_s)
+        geometry = decode_polyline(fastest.encoded_polyline)
+        line = LineString(
+            [_WGS84_TO_ITM.transform(point.longitude, point.latitude) for point in geometry]
+        )
+        result = []
+        for signal in context.traffic_signals:
+            if line.distance(signal) > 18:
+                continue
+            longitude, latitude = _ITM_TO_WGS84.transform(signal.x, signal.y)
+            coordinate = Coordinate(latitude=latitude, longitude=longitude)
+            # Excluding a signal at an endpoint can make an otherwise valid
+            # route impossible and cannot improve the user's journey anyway.
+            if haversine_m(request.origin, coordinate) < 60:
+                continue
+            if haversine_m(request.destination, coordinate) < 60:
+                continue
+            result.append(coordinate)
+        return tuple(result)
 
     def _shade_routes(
         self,
@@ -452,18 +501,33 @@ class RouteFeatureAnalyzer:
         shadow_cache: dict[
             tuple[datetime, float, float], tuple[BaseGeometry, BaseGeometry, bool]
         ] = {}
+        sampling_corridor = _route_sampling_corridor(routes)
+        building_groups = _building_height_groups(context.buildings)
         enriched = [
-            _annotate_shade_time_dependent(route, context.buildings, shadow_cache)
+            _annotate_shade_time_dependent(
+                route,
+                context.buildings,
+                shadow_cache,
+                observer_coordinate=request.origin,
+                sampling_corridor=sampling_corridor,
+                building_groups=building_groups,
+            )
             for route in routes
         ]
         fastest = min(enriched, key=lambda route: route.metrics.duration_s)
         if request.include_comparisons:
-            balanced = self._best_balanced_shade_route(request, enriched, fastest, 15.0).model_copy(
-                update={"label_key": "route.balancedShade"}
-            )
-            maximum = self._best_maximum_shade_route(request, enriched, fastest, 30.0).model_copy(
-                update={"label_key": "route.maximumShade"}
-            )
+            balanced = self._best_balanced_shade_route(
+                request,
+                enriched,
+                fastest,
+                _BALANCED_SHADE_DETOUR_PERCENT,
+            ).model_copy(update={"label_key": "route.balancedShade"})
+            maximum = self._best_maximum_shade_route(
+                request,
+                enriched,
+                fastest,
+                _MAXIMUM_SHADE_DETOUR_PERCENT,
+            ).model_copy(update={"label_key": "route.maximumShade"})
             fastest_label = (
                 "route.fastestAndShadiest" if maximum.id == fastest.id else "route.fastest"
             )
@@ -475,7 +539,11 @@ class RouteFeatureAnalyzer:
             return comparison[:3]
         if request.preference == RoutePreference.FASTEST:
             return enriched
-        cap = 15.0 if request.preference == RoutePreference.BALANCED_SHADE else 30.0
+        cap = (
+            _BALANCED_SHADE_DETOUR_PERCENT
+            if request.preference == RoutePreference.BALANCED_SHADE
+            else _MAXIMUM_SHADE_DETOUR_PERCENT
+        )
         if request.constraints.maximum_time_detour_percent is not None:
             cap = request.constraints.maximum_time_detour_percent
         candidates = [
@@ -647,6 +715,7 @@ def _shadow_unions(
     buildings: tuple[Building, ...],
     when: datetime,
     coordinate: Coordinate,
+    sampling_corridor: BaseGeometry | None = None,
 ) -> tuple[BaseGeometry, BaseGeometry, bool, float, float]:
     observer = Observer(latitude=coordinate.latitude, longitude=coordinate.longitude)
     sun_elevation = float(elevation(observer, when))
@@ -656,13 +725,23 @@ def _shadow_unions(
         return empty, empty, False, sun_azimuth, sun_elevation
     all_shadows = []
     high_shadows = []
+    target_bounds = sampling_corridor.bounds if sampling_corridor is not None else None
     for building in buildings:
         length = min(250.0, building.height_m / math.tan(math.radians(sun_elevation)))
         direction = math.radians((sun_azimuth + 180) % 360)
         dx = length * math.sin(direction)
         dy = length * math.cos(direction)
+        if target_bounds is not None and not _translated_bounds_overlap(
+            building.footprint.bounds,
+            dx,
+            dy,
+            target_bounds,
+        ):
+            continue
         shadow = _shadow_for_geometry(building.footprint, dx, dy)
-        if shadow.is_empty:
+        if shadow.is_empty or (
+            sampling_corridor is not None and not sampling_corridor.intersects(shadow)
+        ):
             continue
         all_shadows.append(shadow)
         if building.confidence == DataConfidence.HIGH:
@@ -744,30 +823,92 @@ def _annotate_shade_time_dependent(
     route: RouteAlternative,
     buildings: tuple[Building, ...],
     cache: dict[tuple[datetime, float, float], tuple[BaseGeometry, BaseGeometry, bool]],
+    *,
+    observer_coordinate: Coordinate | None = None,
+    sampling_corridor: BaseGeometry | None = None,
+    building_groups: tuple[_BuildingHeightGroup, ...] | None = None,
 ) -> RouteAlternative:
     geometry = decode_polyline(route.encoded_polyline)
     segment_distances = [haversine_m(first, second) for first, second in pairwise(geometry)]
     route_distance = sum(segment_distances)
     if not geometry or route_distance <= 0:
         return route
-    observer_coordinate = geometry[len(geometry) // 2]
-    annotations: list[SegmentAnnotation] = []
-    shaded_distance = high_distance = total_distance = 0.0
-    sun_exposure_seconds = 0.0
+    # All alternatives share the trip origin. Solar angles change by far less
+    # than the source-data uncertainty across a metropolitan route, while a
+    # shared observer lets alternatives reuse the same five-minute shadow
+    # surfaces instead of rebuilding identical unions for every route.
+    observer_coordinate = observer_coordinate or geometry[len(geometry) // 2]
+    segment_samples = [
+        _segment_samples(first, second, distance)
+        for (first, second), distance in zip(pairwise(geometry), segment_distances, strict=True)
+    ]
+    segment_times: list[tuple[datetime, datetime, float]] = []
     elapsed_distance = 0.0
-    for index, ((first, second), distance) in enumerate(
-        zip(pairwise(geometry), segment_distances, strict=True)
-    ):
+    for distance in segment_distances:
         midpoint_fraction = (elapsed_distance + distance / 2) / route_distance
         predicted_at = route.departure_at + timedelta(
             seconds=route.metrics.duration_s * midpoint_fraction
         )
-        lower_at, upper_at, interpolation = _five_minute_bounds(predicted_at)
-        lower = _cached_shadow_union(cache, buildings, lower_at, observer_coordinate)
-        upper = _cached_shadow_union(cache, buildings, upper_at, observer_coordinate)
-        samples = _segment_samples(first, second, distance)
-        lower_shade, lower_high = _sampled_shade_fractions(samples, *lower)
-        upper_shade, upper_high = _sampled_shade_fractions(samples, *upper)
+        segment_times.append(_five_minute_bounds(predicted_at))
+        elapsed_distance += distance
+
+    shade_masks: dict[
+        datetime,
+        tuple[
+            np.ndarray[Any, np.dtype[np.bool_]],
+            np.ndarray[Any, np.dtype[np.bool_]],
+        ],
+    ] = {}
+    sample_ranges: list[tuple[int, int]] = []
+    if building_groups is not None:
+        x_coordinates = np.concatenate(
+            [np.asarray(samples[0], dtype=np.float64) for samples in segment_samples]
+        )
+        y_coordinates = np.concatenate(
+            [np.asarray(samples[1], dtype=np.float64) for samples in segment_samples]
+        )
+        cursor = 0
+        for samples in segment_samples:
+            end = cursor + len(samples[0])
+            sample_ranges.append((cursor, end))
+            cursor = end
+        for when in {value for bounds in segment_times for value in bounds[:2]}:
+            shade_masks[when] = _building_shade_masks(
+                x_coordinates,
+                y_coordinates,
+                building_groups,
+                when,
+                observer_coordinate,
+            )
+
+    annotations: list[SegmentAnnotation] = []
+    shaded_distance = high_distance = total_distance = 0.0
+    sun_exposure_seconds = 0.0
+    for index, (distance, samples, time_bounds) in enumerate(
+        zip(segment_distances, segment_samples, segment_times, strict=True)
+    ):
+        lower_at, upper_at, interpolation = time_bounds
+        if building_groups is None:
+            lower = _cached_shadow_union(
+                cache,
+                buildings,
+                lower_at,
+                observer_coordinate,
+                sampling_corridor,
+            )
+            upper = _cached_shadow_union(
+                cache,
+                buildings,
+                upper_at,
+                observer_coordinate,
+                sampling_corridor,
+            )
+            lower_shade, lower_high = _sampled_shade_fractions(samples, *lower)
+            upper_shade, upper_high = _sampled_shade_fractions(samples, *upper)
+        else:
+            start, end = sample_ranges[index]
+            lower_shade, lower_high = _mask_fractions(shade_masks[lower_at], start, end)
+            upper_shade, upper_high = _mask_fractions(shade_masks[upper_at], start, end)
         shaded = lower_shade + (upper_shade - lower_shade) * interpolation
         high = lower_high + (upper_high - lower_high) * interpolation
         segment_duration = route.metrics.duration_s * distance / route_distance
@@ -784,7 +925,6 @@ def _annotate_shade_time_dependent(
                 confidence=DataConfidence.MEDIUM,
             )
         )
-        elapsed_distance += distance
     fraction = shaded_distance / total_distance if total_distance else 0.0
     high_fraction = high_distance / total_distance if total_distance else 0.0
     metrics = route.metrics.model_copy(
@@ -821,29 +961,117 @@ def _cached_shadow_union(
     buildings: tuple[Building, ...],
     when: datetime,
     coordinate: Coordinate,
+    sampling_corridor: BaseGeometry | None = None,
 ) -> tuple[BaseGeometry, BaseGeometry, bool]:
     key = (when, round(coordinate.latitude, 3), round(coordinate.longitude, 3))
     cached = cache.get(key)
     if cached is not None:
         return cached
-    shadows, high_shadows, sun_up, _, _ = _shadow_unions(buildings, when, coordinate)
+    if sampling_corridor is None:
+        shadows, high_shadows, sun_up, _, _ = _shadow_unions(buildings, when, coordinate)
+    else:
+        shadows, high_shadows, sun_up, _, _ = _shadow_unions(
+            buildings,
+            when,
+            coordinate,
+            sampling_corridor,
+        )
     result = (shadows, high_shadows, sun_up)
     cache[key] = result
     return result
 
 
 def _sampled_shade_fractions(
-    samples: list[Point],
+    samples: tuple[list[float], list[float]],
     shadows: BaseGeometry,
     high_shadows: BaseGeometry,
     sun_up: bool,
 ) -> tuple[float, float]:
     if not sun_up:
         return 1.0, 1.0
+    x_coordinates, y_coordinates = samples
+    sample_count = len(x_coordinates)
     return (
-        sum(shadows.covers(point) for point in samples) / len(samples),
-        sum(high_shadows.covers(point) for point in samples) / len(samples),
+        float(intersects_xy(shadows, x_coordinates, y_coordinates).sum()) / sample_count,
+        float(intersects_xy(high_shadows, x_coordinates, y_coordinates).sum()) / sample_count,
     )
+
+
+def _building_height_groups(
+    buildings: tuple[Building, ...],
+) -> tuple[_BuildingHeightGroup, ...]:
+    footprints_by_height: dict[float, list[BaseGeometry]] = {}
+    high_footprints_by_height: dict[float, list[BaseGeometry]] = {}
+    for building in buildings:
+        footprints_by_height.setdefault(building.height_m, []).append(building.footprint)
+        if building.confidence == DataConfidence.HIGH:
+            high_footprints_by_height.setdefault(building.height_m, []).append(building.footprint)
+    groups: list[_BuildingHeightGroup] = []
+    for height_m, footprints in footprints_by_height.items():
+        footprint_union = unary_union(footprints)
+        high_union = (
+            unary_union(high_footprints_by_height[height_m])
+            if height_m in high_footprints_by_height
+            else Polygon()
+        )
+        prepare(footprint_union)
+        if not high_union.is_empty:
+            prepare(high_union)
+        groups.append(
+            _BuildingHeightGroup(
+                height_m=height_m,
+                footprints=footprint_union,
+                high_confidence_footprints=high_union,
+            )
+        )
+    return tuple(groups)
+
+
+def _building_shade_masks(
+    x_coordinates: np.ndarray[Any, np.dtype[np.float64]],
+    y_coordinates: np.ndarray[Any, np.dtype[np.float64]],
+    groups: tuple[_BuildingHeightGroup, ...],
+    when: datetime,
+    coordinate: Coordinate,
+) -> tuple[np.ndarray[Any, np.dtype[np.bool_]], np.ndarray[Any, np.dtype[np.bool_]]]:
+    observer = Observer(latitude=coordinate.latitude, longitude=coordinate.longitude)
+    sun_elevation = float(elevation(observer, when))
+    shaded = np.zeros(len(x_coordinates), dtype=np.bool_)
+    high_shaded = np.zeros(len(x_coordinates), dtype=np.bool_)
+    if sun_elevation <= 0:
+        shaded[:] = True
+        high_shaded[:] = True
+        return shaded, high_shaded
+    direction = math.radians((float(azimuth(observer, when)) + 180) % 360)
+    for group in groups:
+        length = min(250.0, group.height_m / math.tan(math.radians(sun_elevation)))
+        dx = length * math.sin(direction)
+        dy = length * math.cos(direction)
+        ray_coordinates = np.empty((len(x_coordinates), 2, 2), dtype=np.float64)
+        ray_coordinates[:, 0, 0] = x_coordinates
+        ray_coordinates[:, 0, 1] = y_coordinates
+        ray_coordinates[:, 1, 0] = x_coordinates - dx
+        ray_coordinates[:, 1, 1] = y_coordinates - dy
+        rays = linestrings(ray_coordinates)
+        outside = ~intersects_xy(group.footprints, x_coordinates, y_coordinates)
+        shaded |= intersects(group.footprints, rays) & outside
+        if not group.high_confidence_footprints.is_empty:
+            high_outside = ~intersects_xy(
+                group.high_confidence_footprints,
+                x_coordinates,
+                y_coordinates,
+            )
+            high_shaded |= intersects(group.high_confidence_footprints, rays) & high_outside
+    return shaded, high_shaded
+
+
+def _mask_fractions(
+    masks: tuple[np.ndarray[Any, np.dtype[np.bool_]], np.ndarray[Any, np.dtype[np.bool_]]],
+    start: int,
+    end: int,
+) -> tuple[float, float]:
+    count = end - start
+    return float(masks[0][start:end].sum()) / count, float(masks[1][start:end].sum()) / count
 
 
 def _shade_classification(shaded: float) -> str:
@@ -861,16 +1089,22 @@ def _annotate_signals(route: RouteAlternative, signals: tuple[Point, ...]) -> Ro
     )
 
 
-def _segment_samples(first: Coordinate, second: Coordinate, distance_m: float) -> list[Point]:
+def _segment_samples(
+    first: Coordinate,
+    second: Coordinate,
+    distance_m: float,
+) -> tuple[list[float], list[float]]:
     count = max(1, math.ceil(distance_m / 5))
-    result = []
+    x_coordinates: list[float] = []
+    y_coordinates: list[float] = []
     for index in range(count + 1):
         fraction = index / count
         longitude = first.longitude + (second.longitude - first.longitude) * fraction
         latitude = first.latitude + (second.latitude - first.latitude) * fraction
         x, y = _WGS84_TO_ITM.transform(longitude, latitude)
-        result.append(Point(x, y))
-    return result
+        x_coordinates.append(x)
+        y_coordinates.append(y)
+    return x_coordinates, y_coordinates
 
 
 def _route_bounds(routes: list[RouteAlternative]) -> tuple[float, float, float, float]:
@@ -894,6 +1128,43 @@ def _route_corridor(routes: list[RouteAlternative]) -> BaseGeometry:
     if not lines:
         raise ValueError("Route context requires at least one route with valid geometry")
     return unary_union(lines)
+
+
+def _route_sampling_corridor(routes: list[RouteAlternative]) -> BaseGeometry:
+    lines = []
+    for route in routes:
+        coordinates = [
+            _WGS84_TO_ITM.transform(point.longitude, point.latitude)
+            for point in decode_polyline(route.encoded_polyline)
+        ]
+        if len(coordinates) >= 2:
+            lines.append(LineString(coordinates))
+    if not lines:
+        raise ValueError("Shade sampling requires at least one valid route")
+    # Six metres covers encoded-geometry rounding, opposite sidewalk sides and
+    # the positional uncertainty of OSM building footprints without retaining
+    # shadows that cannot affect any displayed alternative.
+    return unary_union(lines).buffer(6)
+
+
+def _translated_bounds_overlap(
+    source: tuple[float, float, float, float],
+    dx: float,
+    dy: float,
+    target: tuple[float, float, float, float],
+) -> bool:
+    source_min_x, source_min_y, source_max_x, source_max_y = source
+    shadow_min_x = min(source_min_x, source_min_x + dx)
+    shadow_min_y = min(source_min_y, source_min_y + dy)
+    shadow_max_x = max(source_max_x, source_max_x + dx)
+    shadow_max_y = max(source_max_y, source_max_y + dy)
+    target_min_x, target_min_y, target_max_x, target_max_y = target
+    return not (
+        shadow_max_x < target_min_x
+        or shadow_min_x > target_max_x
+        or shadow_max_y < target_min_y
+        or shadow_min_y > target_max_y
+    )
 
 
 def _projected_bounds_to_wgs84(

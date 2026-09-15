@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from itertools import pairwise
 from math import cos, radians
-from typing import Any, Protocol, cast
+from typing import Any, Protocol, cast, runtime_checkable
 
 import httpx
 
@@ -55,6 +55,15 @@ class StreetEnginePort(Protocol):
     async def routes(self, request: RoutePlanRequest) -> list[EngineItinerary]: ...
 
 
+@runtime_checkable
+class SignalAvoidingStreetEnginePort(Protocol):
+    async def routes_avoiding_signals(
+        self,
+        request: RoutePlanRequest,
+        signals: tuple[Coordinate, ...],
+    ) -> list[EngineItinerary]: ...
+
+
 class TransitEnginePort(Protocol):
     async def routes(self, request: RoutePlanRequest) -> list[EngineItinerary]: ...
 
@@ -84,14 +93,17 @@ class ValhallaAdapter:
                     alternative_payloads = self._alternative_payloads(request, result[0])
                     if alternative_payloads:
                         tasks = {
-                            asyncio.create_task(
-                                client.post(f"{self._base_url}/route", json=item)
-                            )
+                            asyncio.create_task(client.post(f"{self._base_url}/route", json=item))
                             for item in alternative_payloads
                         }
                         completed, pending = await asyncio.wait(
                             tasks,
-                            timeout=min(1.8, self._timeout / 2),
+                            # Public Valhalla instances often return the main
+                            # route quickly but need a little longer for via-
+                            # point alternatives. Waiting up to four seconds
+                            # materially improves comparison coverage while all
+                            # probes still run concurrently.
+                            timeout=min(4.0, self._timeout * 0.75),
                         )
                         for task in pending:
                             task.cancel()
@@ -118,16 +130,77 @@ class ValhallaAdapter:
             raise RoutingUnavailableError from exc
         except (httpx.HTTPError, ValueError) as exc:
             raise RoutingUnavailableError from exc
+        return self._select_itineraries(request, result)
+
+    async def routes_avoiding_signals(
+        self,
+        request: RoutePlanRequest,
+        signals: tuple[Coordinate, ...],
+    ) -> list[EngineItinerary]:
+        payloads = self._signal_avoidance_payloads(request, signals)
+        if not payloads:
+            return []
+        result: list[EngineItinerary] = []
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout, headers=self._headers) as client:
+                responses = await asyncio.gather(
+                    *[client.post(f"{self._base_url}/route", json=payload) for payload in payloads],
+                    return_exceptions=True,
+                )
+        except httpx.HTTPError:
+            return []
+        for response in responses:
+            if not isinstance(response, httpx.Response) or response.status_code >= 400:
+                continue
+            try:
+                result.extend(self.normalize(cast(dict[str, Any], response.json()), request))
+            except (httpx.HTTPError, ValueError):
+                continue
+        return self._select_itineraries(request, result, no_route_is_empty=True)
+
+    @classmethod
+    def _signal_avoidance_payloads(
+        cls,
+        request: RoutePlanRequest,
+        signals: tuple[Coordinate, ...],
+    ) -> list[dict[str, object]]:
+        if not signals:
+            return []
+        result = []
+        # Avoiding every signal at once frequently disconnects dense city
+        # streets. Three interleaved groups instead encourage independent,
+        # legal corridors and let the final hard caps reject bad detours.
+        for offset in range(min(3, len(signals))):
+            excluded = signals[offset::3]
+            if not excluded:
+                continue
+            payload = cls.request_payload(request)
+            payload["exclude_locations"] = [
+                {"lat": point.latitude, "lon": point.longitude} for point in excluded[:20]
+            ]
+            result.append(payload)
+        return result
+
+    @staticmethod
+    def _select_itineraries(
+        request: RoutePlanRequest,
+        result: list[EngineItinerary],
+        *,
+        no_route_is_empty: bool = False,
+    ) -> list[EngineItinerary]:
         if not result:
+            if no_route_is_empty:
+                return []
             raise NoRouteError
         fastest = min((item.arrival_at - item.departure_at).total_seconds() for item in result)
+        maximum_duration_factor = 1.55 if request.mode == TravelMode.WALK else 1.5
         unique: list[EngineItinerary] = []
         seen: set[tuple[tuple[float, float], ...]] = set()
         for itinerary in sorted(
             result, key=lambda item: (item.arrival_at - item.departure_at).total_seconds()
         ):
             duration = (itinerary.arrival_at - itinerary.departure_at).total_seconds()
-            if duration > fastest * 1.5:
+            if duration > fastest * maximum_duration_factor:
                 continue
             key = tuple(
                 (round(point.latitude, 4), round(point.longitude, 4))
@@ -137,7 +210,14 @@ class ValhallaAdapter:
             if key not in seen:
                 unique.append(itinerary)
                 seen.add(key)
-        return unique[: (5 if request.include_comparisons else 3)]
+        limit = 5 if request.include_comparisons else 3
+        if request.mode == TravelMode.WALK and request.include_comparisons and len(unique) > limit:
+            # Preserve quick alternatives as well as broader corridors that
+            # may be substantially shadier. The feature analyzer applies the
+            # final 15%/50% detour policies after measuring actual exposure.
+            indices = [0, 1, 2, round((len(unique) - 1) * 0.67), len(unique) - 1]
+            return [unique[index] for index in dict.fromkeys(indices)][:limit]
+        return unique[:limit]
 
     @classmethod
     def _alternative_payloads(
@@ -154,10 +234,12 @@ class ValhallaAdapter:
         perpendicular_lat = -delta_lon / magnitude
         perpendicular_lon = delta_lat / magnitude
         route_distance_m = sum(leg.distance_m for leg in primary.legs)
+        offset_scales: tuple[float, ...]
         if request.mode == TravelMode.WALK:
             offset_scales = (
                 min(160.0, max(55.0, route_distance_m * 0.08)),
                 min(500.0, max(140.0, route_distance_m * 0.20)),
+                min(900.0, max(260.0, route_distance_m * 0.35)),
             )
         elif request.mode in {TravelMode.BIKE, TravelMode.SCOOTER}:
             offset_scales = (
@@ -175,9 +257,7 @@ class ValhallaAdapter:
         payloads = []
         for offset_m in dict.fromkeys(round(value, 1) for value in offset_scales):
             for direction in (-1, 1):
-                via_lat = (
-                    midpoint.latitude + direction * perpendicular_lat * offset_m / 111_320
-                )
+                via_lat = midpoint.latitude + direction * perpendicular_lat * offset_m / 111_320
                 via_lon = midpoint.longitude + direction * perpendicular_lon * offset_m / (
                     111_320 * cos(radians(midpoint.latitude))
                 )

@@ -72,7 +72,7 @@ class StreetRouter:
             balanced = self._best_shaded(
                 request, departure, fastest, self._shade_cap(request, 15.0)
             )
-            maximum = self._best_shaded(request, departure, fastest, self._shade_cap(request, 30.0))
+            maximum = self._best_shaded(request, departure, fastest, self._shade_cap(request, 50.0))
             shade_routes = [
                 PlannedPath("route.fastest", fastest),
                 PlannedPath("route.balancedShade", balanced),
@@ -289,7 +289,7 @@ class StreetRouter:
     def _detour_cap(request: RoutePlanRequest) -> float:
         if request.constraints.maximum_time_detour_percent is not None:
             return request.constraints.maximum_time_detour_percent
-        return 15.0 if request.preference == RoutePreference.BALANCED_SHADE else 30.0
+        return 15.0 if request.preference == RoutePreference.BALANCED_SHADE else 50.0
 
     @staticmethod
     def _shade_cap(request: RoutePlanRequest, default: float) -> float:

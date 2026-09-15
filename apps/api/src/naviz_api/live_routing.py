@@ -7,7 +7,12 @@ from hashlib import sha256
 from time import monotonic
 from typing import Protocol
 
-from .engine_adapters import EngineItinerary, StreetEnginePort, TransitEnginePort
+from .engine_adapters import (
+    EngineItinerary,
+    SignalAvoidingStreetEnginePort,
+    StreetEnginePort,
+    TransitEnginePort,
+)
 from .errors import NoRouteError
 from .geometry import bbox, encode_polyline
 from .live_search import CoverageArea
@@ -72,6 +77,18 @@ class LiveRoutePlanner:
         engine = self._transit if request.mode in _TRANSIT_MODES else self._street
         itineraries = await engine.routes(request)
         routes = self._alternatives(request, itineraries)
+        if (
+            request.mode in _ROAD_MODES
+            and request.include_comparisons
+            and self._feature_analyzer is not None
+            and isinstance(self._street, SignalAvoidingStreetEnginePort)
+        ):
+            signals = await self._feature_analyzer.signal_probe_coordinates(request, routes)
+            if signals:
+                alternatives = await self._street.routes_avoiding_signals(request, signals)
+                if alternatives:
+                    itineraries.extend(alternatives)
+                    routes = self._alternatives(request, itineraries)
         if self._feature_analyzer is not None:
             routes = await self._feature_analyzer.enrich(request, routes)
         if not routes:
@@ -104,9 +121,7 @@ class LiveRoutePlanner:
         ).total_seconds()
         fastest_distance = sum(leg.distance_m for leg in fastest_itinerary.legs)
         result = [
-            self._to_alternative(
-                request, itinerary, index, fastest_duration, fastest_distance
-            )
+            self._to_alternative(request, itinerary, index, fastest_duration, fastest_distance)
             for index, itinerary in enumerate(itineraries)
         ]
         if request.mode in _TRANSIT_MODES and request.include_comparisons:
@@ -115,7 +130,11 @@ class LiveRoutePlanner:
             result.sort(key=lambda route: (route.metrics.transfers, route.metrics.duration_s))
         else:
             result.sort(key=lambda route: route.metrics.duration_s)
-        return result[:3]
+        # Shade and traffic-signal comparisons need a wider candidate pool
+        # than the three fastest near-duplicates. The feature analyzer still
+        # returns at most three user-facing choices after applying its hard
+        # detour constraints.
+        return result[: (5 if request.include_comparisons else 3)]
 
     def _to_alternative(
         self,
@@ -307,6 +326,7 @@ _TRANSIT_MODES = {
     TravelMode.SCOOTER_TRANSIT,
     TravelMode.RENTAL_TRANSIT,
 }
+_ROAD_MODES = {TravelMode.CAR, TravelMode.MOTORCYCLE, TravelMode.TRUCK}
 
 
 def _percent(value: float, baseline: float) -> float:

@@ -88,6 +88,70 @@ def test_valhalla_probes_near_and_broad_alternative_corridors() -> None:
     assert all(payload["alternates"] == 0 for payload in payloads)
 
 
+def test_valhalla_walk_probes_include_wider_shade_corridors() -> None:
+    request = RoutePlanRequest(
+        origin=ORIGIN,
+        destination=DESTINATION,
+        depart_at=datetime(2026, 8, 2, 9, 0, tzinfo=TZ),
+        mode=TravelMode.WALK,
+        include_comparisons=True,
+    )
+    primary = EngineItinerary(
+        departure_at=request.depart_at,
+        arrival_at=request.depart_at + timedelta(minutes=20),
+        legs=(
+            EngineLeg(
+                mode=TravelMode.WALK,
+                geometry=(ORIGIN, Coordinate(latitude=32.076, longitude=34.774), DESTINATION),
+                distance_m=2_500,
+                duration_s=1_200,
+                from_name="Origin",
+                to_name="Destination",
+            ),
+        ),
+    )
+
+    payloads = ValhallaAdapter._alternative_payloads(request, primary)
+
+    assert len(payloads) == 6
+    assert (
+        len(
+            {
+                (
+                    round(payload["locations"][1]["lat"], 6),
+                    round(payload["locations"][1]["lon"], 6),
+                )
+                for payload in payloads
+            }
+        )
+        == 6
+    )
+
+
+def test_valhalla_signal_avoidance_interleaves_signal_groups() -> None:
+    request = RoutePlanRequest(
+        origin=ORIGIN,
+        destination=DESTINATION,
+        depart_at=datetime(2026, 8, 2, 9, 0, tzinfo=TZ),
+        mode=TravelMode.CAR,
+        include_comparisons=True,
+    )
+    signals = tuple(
+        Coordinate(latitude=32.074 + index * 0.001, longitude=34.77) for index in range(8)
+    )
+
+    payloads = ValhallaAdapter._signal_avoidance_payloads(request, signals)
+
+    assert len(payloads) == 3
+    excluded = [
+        (point["lat"], point["lon"])
+        for payload in payloads
+        for point in payload["exclude_locations"]
+    ]
+    assert set(excluded) == {(point.latitude, point.longitude) for point in signals}
+    assert all(len(payload["exclude_locations"]) <= 20 for payload in payloads)
+
+
 def test_otp_drops_full_size_bike_trip_with_unknown_permission() -> None:
     request = RoutePlanRequest(
         origin=ORIGIN,

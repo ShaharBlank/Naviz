@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from typing import cast
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -8,6 +9,7 @@ from naviz_api.errors import OutsideCoverageError
 from naviz_api.live_routing import LiveRoutePlanner
 from naviz_api.live_search import CoverageArea
 from naviz_api.models import Coordinate, RoutePlanRequest, TravelMode
+from naviz_api.route_features import RouteFeatureAnalyzer
 
 TZ = ZoneInfo("Asia/Jerusalem")
 ORIGIN = Coordinate(latitude=32.0733, longitude=34.7799)
@@ -209,3 +211,75 @@ def test_live_alternatives_compare_distance_against_the_fastest_route(
     assert routes[0].metrics.detour_distance_percent == 0
     assert routes[1].metrics.detour_time_percent == 10
     assert routes[1].metrics.detour_distance_percent == 20
+
+
+@pytest.mark.asyncio
+async def test_live_planner_requests_signal_avoiding_candidates_when_needed() -> None:
+    class SignalAvoidingEngine(FakeEngine):
+        probe_calls = 0
+
+        async def routes_avoiding_signals(
+            self,
+            request: RoutePlanRequest,
+            signals: tuple[Coordinate, ...],
+        ) -> list[EngineItinerary]:
+            self.probe_calls += 1
+            assert signals
+            departure = request.depart_at or datetime(2026, 8, 6, 9, 0, tzinfo=TZ)
+            return [
+                EngineItinerary(
+                    departure_at=departure,
+                    arrival_at=departure + timedelta(minutes=12, seconds=20),
+                    legs=(
+                        EngineLeg(
+                            mode=request.mode,
+                            geometry=(
+                                request.origin,
+                                Coordinate(latitude=32.078, longitude=34.790),
+                                request.destination,
+                            ),
+                            distance_m=2_450,
+                            duration_s=740,
+                            from_name="Origin",
+                            to_name="Destination",
+                        ),
+                    ),
+                )
+            ]
+
+    class FeatureAnalyzer:
+        async def signal_probe_coordinates(
+            self,
+            request: RoutePlanRequest,
+            routes,
+        ) -> tuple[Coordinate, ...]:
+            del request, routes
+            return (Coordinate(latitude=32.078, longitude=34.782),)
+
+        async def enrich(self, request: RoutePlanRequest, routes):
+            del request
+            return routes
+
+    engine = SignalAvoidingEngine()
+    signal_planner = LiveRoutePlanner(
+        engine,
+        engine,
+        CoverageArea(34.69, 31.94, 34.93, 32.2),
+        data_version="test-regional",
+        route_ttl_seconds=900,
+        feature_analyzer=cast(RouteFeatureAnalyzer, FeatureAnalyzer()),
+    )
+
+    response = await signal_planner.plan(
+        RoutePlanRequest(
+            origin=ORIGIN,
+            destination=DESTINATION,
+            depart_at=datetime(2026, 8, 6, 9, 0, tzinfo=TZ),
+            mode=TravelMode.CAR,
+            include_comparisons=True,
+        ),
+        "request-signals",
+    )
+
+    assert engine.probe_calls == 1
+    assert len(response.routes) == 2

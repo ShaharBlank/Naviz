@@ -427,6 +427,40 @@ def test_walking_shade_uses_predicted_segment_arrival_times(monkeypatch) -> None
     assert annotated.metrics.sun_exposure_minutes == pytest.approx(2.5, abs=0.05)
 
 
+def test_vectorized_building_shade_matches_polygon_extrusion() -> None:
+    departure = datetime(2026, 8, 17, 9, 0, tzinfo=TZ)
+    geometry = [
+        Coordinate(latitude=32.0746, longitude=34.7795),
+        Coordinate(latitude=32.0762, longitude=34.7795),
+    ]
+    route = _route("shade-parity", 34.7795, 150, 180, departure).model_copy(
+        update={"encoded_polyline": encode_polyline(geometry)}
+    )
+    building_center_x, building_center_y = TO_ITM.transform(34.7796, 32.0754)
+    building = route_features.Building(
+        footprint=Point(building_center_x, building_center_y).buffer(14),
+        height_m=16,
+        confidence=DataConfidence.HIGH,
+    )
+
+    polygon_result = route_features._annotate_shade_time_dependent(route, (building,), {})
+    vector_result = route_features._annotate_shade_time_dependent(
+        route,
+        (building,),
+        {},
+        building_groups=route_features._building_height_groups((building,)),
+    )
+
+    assert vector_result.metrics.shade_fraction == pytest.approx(
+        polygon_result.metrics.shade_fraction,
+        abs=0.02,
+    )
+    assert vector_result.metrics.sun_exposure_minutes == pytest.approx(
+        polygon_result.metrics.sun_exposure_minutes,
+        abs=0.05,
+    )
+
+
 def _route(
     route_id: str,
     longitude: float,

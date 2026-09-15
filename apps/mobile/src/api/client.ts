@@ -37,10 +37,18 @@ async function fetchJson<T>(
   timeoutMs = 20_000,
 ): Promise<T> {
   const controller = new AbortController();
-  const abortFromCaller = () => controller.abort();
+  let timedOut = false;
+  let callerAborted = false;
+  const abortFromCaller = () => {
+    callerAborted = true;
+    controller.abort();
+  };
   if (init?.signal?.aborted) controller.abort();
   init?.signal?.addEventListener("abort", abortFromCaller, { once: true });
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
   try {
     const response = await fetch(`${API_URL}${path}`, {
       ...init,
@@ -70,6 +78,8 @@ async function fetchJson<T>(
     if (error instanceof ApiError) throw error;
     const message =
       error instanceof Error ? error.message : "Network request failed";
+    if (timedOut) throw new ApiError(message, null, "request_timeout");
+    if (callerAborted) throw new ApiError(message, null, "request_cancelled");
     throw new ApiError(message, null, "network_error");
   } finally {
     clearTimeout(timer);

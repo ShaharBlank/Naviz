@@ -717,6 +717,7 @@ export default function HomeScreen() {
             locationStatus={locationStatus}
             searching={search.isFetching}
             searchError={search.isError}
+            planError={state.matches("error") ? state.context.error : null}
             planning={planning}
             locale={locale}
             onLocaleToggle={() => setLocale(locale === "he" ? "en" : "he")}
@@ -767,15 +768,6 @@ export default function HomeScreen() {
             tone="error"
             actionLabel={t("retry")}
             onAction={() => send({ type: "RETRY" })}
-            rtl={rtl}
-            navigation={active}
-          />
-        ) : state.matches("error") ? (
-          <StatusBanner
-            message={state.context.error ?? t("error.generic")}
-            tone="error"
-            actionLabel={t("retry")}
-            onAction={() => void plan()}
             rtl={rtl}
             navigation={active}
           />

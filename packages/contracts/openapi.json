@@ -1610,7 +1610,7 @@
   "info": {
     "summary": "Israel-wide shaded, multimodal, and low-signal navigation",
     "title": "Naviz API",
-    "version": "0.3.2"
+    "version": "0.3.3"
   },
   "openapi": "3.1.0",
   "paths": {
