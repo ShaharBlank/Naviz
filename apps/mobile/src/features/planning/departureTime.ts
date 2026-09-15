@@ -41,13 +41,7 @@ export function formatDepartureTime(
   const sameDay = israelDateKey(selected) === israelDateKey(now);
   return new Intl.DateTimeFormat(locale === "he" ? "he-IL" : "en-IL", {
     timeZone: "Asia/Jerusalem",
-    ...(sameDay
-      ? {}
-      : {
-          weekday: "short" as const,
-          day: "numeric" as const,
-          month: "short" as const,
-        }),
+    ...(sameDay ? {} : { day: "numeric" as const, month: "numeric" as const }),
     hour: "2-digit",
     minute: "2-digit",
   }).format(selected);

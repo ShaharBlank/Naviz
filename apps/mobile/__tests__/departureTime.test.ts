@@ -51,5 +51,13 @@ describe("departure and shade clocks", () => {
     expect(
       formatDepartureTime(new Date("2026-09-15T11:15:00+03:00"), "en", now),
     ).toMatch(/11:15/);
+    const anotherDay = formatDepartureTime(
+      new Date("2026-09-16T12:00:00+03:00"),
+      "en",
+      now,
+    );
+    expect(anotherDay).toMatch(/16/);
+    expect(anotherDay).toMatch(/12:00/);
+    expect(anotherDay.length).toBeLessThan(18);
   });
 });
