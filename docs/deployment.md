@@ -15,8 +15,12 @@
 Render is pinned to an immutable Git-commit tag from
 `ghcr.io/shaharblank/naviz-api`; the active tag and data-bundle version are
 verified through the deployment event and `/v1/data/status` before release.
-The active image for API `0.3.1` is
-`ghcr.io/shaharblank/naviz-api:a42efd894804d700ec8e846c9c3bd0d3652abed2`.
+The active image for API `0.3.2` is
+`ghcr.io/shaharblank/naviz-api:9c911a909c05eee4a0369c6c188999a96d1b3ae6`.
+
+The locally verified 0.5.3 universal candidate is
+`artifacts/release/Naviz-0.5.3-israel.apk`; the public GitHub release remains
+0.5.2 until the 0.5.3 asset is intentionally published.
 
 The Android `preview` profile embeds `https://naviz-api.onrender.com` as
 `EXPO_PUBLIC_API_URL`. EAS artifacts are temporary; the permanent GitHub release

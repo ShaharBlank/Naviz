@@ -9,7 +9,7 @@ transport, an immutable national building/traffic-signal bundle, and provider-
 scoped shared mobility with operator deep links. It never returns the deterministic
 CI fixture.
 
-The public Render service reports API `0.3.1`, data bundle
+The public Render service reports API `0.3.2`, data bundle
 `israel-live-2026-08-16`, and nationwide Israel coverage. The checksummed OSM
 feature bundle is published as the `data-israel-2026-08-16` GitHub release and
 is verified before the container starts. Hebrew Photon queries use OSM's default
@@ -18,11 +18,14 @@ uses `lang=en`. Search now merges Hebrew and English Photon passes when that
 improves a Latin query in the Hebrew interface, then ranks places, addresses,
 and transit results by proximity and category without using public Nominatim.
 
-The Android 0.5.2 universal preview APK was built for ARM64, ARMv7, x86, and
+The Android 0.5.3 universal preview APK was built for ARM64, ARMv7, x86, and
 x86_64 and cryptographically verified. Its x86_64 variant was exercised on an
 Android 16 Pixel emulator for installation, startup, fresh GPS acquisition, and
-hosted search, route comparison, 3D navigation, synthetic walking progress, and
-arrival. Walking requests return distinct fastest, balanced-shade, and
+hosted search, a non-current origin, Depart at/Arrive by planning, route
+comparison, and a stable pitched 3D preview. Arrive-by QA used a GMT device to
+verify Jerusalem-local picker semantics and exact 12:00 arrival across
+alternatives. Walking requests return distinct fastest,
+balanced-shade, and
 maximum-shade corridors when the engine finds meaningful alternatives; road
 routes expose total traffic-signal counts and advertise a fewer-lights alternative
 only when it satisfies the configured materiality and detour caps. Intercity
@@ -38,8 +41,10 @@ them, blocks critical findings, and Dependabot checks weekly for compatible
 upstream fixes.
 
 Shade exposure is evaluated from route geometry, solar position, and OpenStreetMap
-building footprints. The 3D view requests clipped ground-shadow polygons for the
-selected time without placing explanatory cards over the map. Navigation uses
+building footprints at each segment's predicted arrival time. The 3D view
+requests the same minute-bucketed route annotations and clipped ground-shadow
+polygons used to color the selected route, then follows the live clock during
+active navigation without placing explanatory cards over the map. Navigation uses
 clean, heading-aware person, two-wheeler, car, truck, and transit avatars in both
 flat and pitched views. Low-signal routes use mapped signal nodes and advertise
 an alternative only inside the 10% ETA and 15% distance caps.

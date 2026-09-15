@@ -1,5 +1,36 @@
 # Naviz Android releases
 
+## 0.5.3 Israel preview (version code 10)
+
+- File: `Naviz-0.5.3-israel.apk`
+- Size: 158,029,847 bytes
+- SHA-256: `6D278B107933F74673C5ABE50EC7BEB192C3739D55451C5DF0DE7C3942858673`
+- Package: `app.naviz.mobile`
+- Android SDK: minimum 24, target 36
+- Expo SDK: 57
+- Source commit: `8a39c78bfae7c39a588341b540a6313a927df521`
+- Backend embedded at bundle time: <https://naviz-api.onrender.com>
+- Backend image pinned on Render:
+  `ghcr.io/shaharblank/naviz-api:9c911a909c05eee4a0369c6c188999a96d1b3ae6`
+- CI: <https://github.com/ShaharBlank/Naviz/actions/runs/34932749284>
+
+This universal APK contains ARM64, ARMv7, x86, and x86_64 native libraries and
+passes APK Signature Scheme v2 verification. It is signed with the local Android
+debug certificate for direct installation and field testing, not Play Store
+distribution; signer certificate SHA-256:
+`FAC61745DC0903786FB9EDE62A962B399F7348F0BB6F899B8332667591033B9C`.
+
+Version 0.5.3 adds a non-current starting point and a single modern trip-time
+control with Leave now, Depart at, and Arrive by. Trip times are pinned to
+`Asia/Jerusalem` even when the device is in another time zone. Emulator QA used
+a GMT Android 16 Pixel and verified that selecting 12:00 remains 12:00, the
+compact card does not truncate the time, and an arrive-by request from HaYarkon
+168 returns hosted road alternatives that all arrive at 12:00. The validated
+comparison showed Fastest with 11 signals and Fewer Lights with 9 signals, and
+the pitched 3D preview remained stable. Native and React Native crash logs were
+clean. Mobile gates passed strict TypeScript, ESLint, and 45 Jest tests; the
+final source CI passed.
+
 ## 0.5.2 Israel preview (version code 9)
 
 - File: `Naviz-0.5.2-israel.apk`
